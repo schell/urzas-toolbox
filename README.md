@@ -8,4 +8,3 @@ Urza's Toolbox
 Urza's Toolbox is a meta package that brings together a bunch of Urza themed
 dev tools for artificing Haskell games.
 
-:)

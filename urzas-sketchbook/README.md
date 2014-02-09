@@ -1,5 +1,7 @@
 Urza's Sketchbook
 =================
+> <img src="https://raw2.github.com/schell/urzas-toolbox/master/assets/spellbook.jpg" />
+>
 > "Everything the wise woman learned she wrote in a book, 
 >  and when the pages were black with ink, she took white 
 >  ink and began again."
