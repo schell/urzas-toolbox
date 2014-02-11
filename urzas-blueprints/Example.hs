@@ -109,6 +109,7 @@ main = do
             -- Render the scene after updating the renderer's window size.
             r' <- renderList (r & rendererWindowSize .~ Size winW winH) ns
             return $ Scene r' ns
+            --return $ Scene r ns
 
         swapBuffers window
         shouldClose <- windowShouldClose window

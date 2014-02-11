@@ -34,10 +34,10 @@ data Atlas = Atlas { _atlasFontFilePath  :: FilePath
 makeLenses ''Atlas
 
 
-data BufferAccumulator = BufferAcc { _buffAccAtlas  :: Atlas
-                                   , _buffAccGeom   :: BufferGeom
-                                   , _buffAccPos    :: Position
-                                   , _buffAccSize   :: Size
+data BufferAccumulator = BufferAcc { _buffAccAtlas :: Atlas
+                                   , _buffAccGeom  :: BufferGeom
+                                   , _buffAccPos   :: Position
+                                   , _buffAccSize  :: Size
                                    }
 makeLenses ''BufferAccumulator
 

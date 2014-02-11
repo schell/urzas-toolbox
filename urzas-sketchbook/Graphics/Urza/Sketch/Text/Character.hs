@@ -159,13 +159,13 @@ geometryForString b = foldl foldBuffer b
               -- and return that result.
               Position _ y' <- buffAccPos <.= Position 0 (y + pxS)
               -- Update the max height.
-              buffAccSize %= (\(Size w _) -> Size w y')
+              buffAccSize %= (\(Size w _) -> Size w $ y' + pxS)
           foldBuffer b' c    = accumulateBuffer b' c
 
 
 -- | Accumulates the geometry of a character into a buffer accumulator.
 accumulateBuffer :: Enum a => BufferAccumulator -> a -> BufferAccumulator
-accumulateBuffer b@(BufferAcc atls _ (Position penX penY) (Size w _)) c
+accumulateBuffer b@(BufferAcc atls _ (Position penX penY) _) c
     -- In the case of ' '.
     | fromEnum c == 32 =
         let (Position penX' penY') =
@@ -175,23 +175,27 @@ accumulateBuffer b@(BufferAcc atls _ (Position penX penY) (Size w _)) c
                     Just fc -> advancePenPosition (Position penX penY) fc
         in flip execState b $ do
             buffAccPos .= Position penX' penY'
-            when (penX' > w) $
+            Size sw sh <- use buffAccSize
+            when (penX' > sw) $
                 -- Update the width.
-                buffAccSize %= \(Size _ h) -> Size penX' h
+                buffAccSize .= Size penX' sh
 
     | otherwise = case IM.lookup (fromEnum c) $ atls^.atlasMap of
-        -- If there is no character just move the pen forward.
         Just fc -> flip execState (loadCharGeomIntoBuffer b fc) $ do
-            Position x _ <- use $ buffAccPos
-            when (x > w) $
+            Position x _ <- use buffAccPos
+            Size sw sh <- use buffAccSize
+            when (x > sw) $
                 -- Update the width to the x pos.
-                buffAccSize %= \(Size _ h) -> Size x h
+                buffAccSize .= Size x sh
+
+        -- If there is no character just move the pen forward.
         Nothing -> flip execState b $ do
             -- Update pen pos x and return that result.
             Position x' _ <- buffAccPos <%= \(Position x y) -> (Position (x + atls^.atlasPxSize) y)
-            when (x' > w) $
+            Size sw sh <- use buffAccSize
+            when (x' > sw) $
                 -- Update the width to the new x pos.
-                buffAccSize %= \(Size _ h) -> Size x' h
+                buffAccSize .= Size x' sh
 
 
 -- | Loads character vertices and uv coords into a buffer accumulator.
@@ -202,10 +206,14 @@ loadCharGeomIntoBuffer b fc = loadCharUVs (loadCharVs b fc) fc
 -- | Loads a list of character vertices into a buffer accumulator.
 loadCharVs :: BufferAccumulator -> FontChar -> BufferAccumulator
 loadCharVs b fc =
-    let (vs, pp) = charVs fc (b^.buffAccPos) $ b^.buffAccAtlas.atlasPxSize
+    let px       = b^.buffAccAtlas.atlasPxSize
+        (vs, pp) = charVs fc (b^.buffAccPos) px
     in flip execState b $ do
         buffAccGeom %= (`mappend` (vs, []))
-        buffAccPos .= pp
+        Position _ y <- buffAccPos <.= pp
+        Size sw sh   <- use buffAccSize
+        when (y + px > sh) $
+            buffAccSize .= (Size sw $ y + px)
 
 
 -- | Loads a list of character uv coords into a buffer accumulator.

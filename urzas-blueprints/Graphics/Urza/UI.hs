@@ -145,7 +145,8 @@ renderText t r = do
     ts^.T.setProjection $ concat pj
     ts^.T.setModelview $ concat mv
     ts^.setTextColor $ t^.textColor
-    _ <- drawTextAt' tr (Position 0 0) (t^.textString)
+    Size w h <- drawTextAt' tr (Position 0 0) (t^.textString)
+    print (w,h)
     return $ r & rendererFontAtlas %~ (insertAtlas font size (tr'^.atlas))
 
 

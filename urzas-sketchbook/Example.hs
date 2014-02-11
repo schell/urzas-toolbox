@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
-import Graphics.Rendering.OpenGL hiding (Matrix)
+import Graphics.Rendering.OpenGL hiding (Matrix, Rectangle)
 import Graphics.Urza.Sketch.Math
 import Graphics.Urza.Sketch.Shader.Shape as S
 import Graphics.Urza.Sketch.Shader.Text as T
@@ -103,20 +103,23 @@ main = do
             (App c _) <- takeMVar appVar
             putMVar appVar (App c [])
 
+        clearColor $= Color4 0 0 0 1
+        clear [ColorBuffer, DepthBuffer]
+
         -- Drawing a red square.
         makeContextCurrent $ Just window
 
-        drawShapes sshader (Size winW winH) $ do
-            -- Draw the curve.
-            stroke $ execNewPath $ do
-                setColor $ Color4 0 1 0 1
-                curveAlong cachedCurve 40
-
+        Rectangle x y w h <- drawShapes sshader (Size winW winH) $ do
             -- Draw the control points of the curve.
             forM_ cachedCurve $ \(x, y) ->
                 fill $ execNewPath $ do
                     setColor $ Color4 0.5 0.5 0.5 1
                     rectangleAt (x-2) (y-2) 4 4
+
+            -- Draw the curve.
+            stroke $ execNewPath $ do
+                setColor $ Color4 0 1 0 1
+                curveAlong cachedCurve 40
 
         let pj = concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
             mv = concat $ identityN 4
@@ -125,7 +128,15 @@ main = do
         textR^.shader.T.setProjection $ pj
         textR^.shader.T.setModelview $ mv
         --textR^.shader.setTextColor $ Color4 1 0 0 1
-        _ <- drawTextAt' textR (Position 0 0) "Blah blah blah!"
+        Size tw th <- drawTextAt' textR (Position 0 0) "Blah blah blah!"
+
+        drawShapes sshader (Size winW winH) $ do
+            fill $ execNewPath $ do
+                setColor $ Color4 1 0 0 0.3
+                rectangleAt 0 0 (fromIntegral tw) (fromIntegral th)
+            fill $ execNewPath $ do
+                setColor $ Color4 0 0 1 0.3
+                rectangleAt x y w h
 
 
         swapBuffers window
@@ -138,8 +149,6 @@ drawShapes sshader s@(Size w h) m = do
     let pj = concat $ orthoMatrix 0 (fromIntegral w) 0 (fromIntegral h) 0 1
         mv = concat $ identityN 4
 
-    clearColor $= Color4 0 0 0 1
-    clear [ColorBuffer, DepthBuffer]
     viewport $= (Position 0 0, s)
     currentProgram $= (Just $ sshader^.S.program)
     sshader^.S.setProjection $ pj

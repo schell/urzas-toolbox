@@ -8,10 +8,7 @@ import Control.Monad
 import Control.Monad.State
 
 
---data Texture = Texture { _textureObject :: TextureObject
---                       , _textureSize   :: Size
---                       }
---makeLenses ''Texture
+data Rectangle a = Rectangle a a a a
 
 
 data Point2d = Point2d Double Double deriving (Show, Eq, Ord)
@@ -43,7 +40,7 @@ type BezierCurve = [Point2d]
 
 -- | Creates a new default path.
 newPath :: Path
-newPath = Path [] [] 0 (Color4 0 0 0 1) (Point2d 0 0) (0,0) (0,0)
+newPath = Path [] [] 0 (Color4 0 0 0 1) (Point2d 0 0) (1/0,-1/0) (1/0,-1/0)
 
 
 -- | Runs a path state change over a new path and returns the modified
@@ -179,37 +176,44 @@ closePath = do
         when (head ps /= lp) $ lineTo x y
 
 
--- | Draws a path into the current opengl context.
+-- | Draws a path into the current opengl context and returns the bounding
+-- box of the result rendering.
 -- Assumes a shader is set up with the proper uniforms to handle the
 -- drawing.
-stroke :: Path -> IO ()
+stroke :: Path -> IO (Rectangle Double)
 stroke p = do
     let vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p^.pathPoints ]
-        uvs = map realToFrac $ concat [ [r,g,b,a] | Color4 r g b a <- p^.pathColors ]
+        uvs = map realToFrac $ concat [ [red,g,bl,a] | Color4 red g bl a <- p^.pathColors ]
+        (l,r) = p^.pathXBounds
+        (t,b) = p^.pathYBounds
     (i,j) <- bindAndBufferVertsColors vs uvs
     drawArrays Lines 0 $ p^.pathLength
     deleteObjectNames [i,j]
+    return $ Rectangle l t (r - l) (b - t)
 
 
-strokePath :: State Path () -> IO ()
+strokePath :: State Path () -> IO (Rectangle Double)
 strokePath = stroke . execNewPath
 
 
 -- | Draws a filled path as a polygon into the current opengl context.
 -- We should probably be doing earclipping and sending tris to the gpu but
 -- drawing in Polygon primitive mode works for now.
-fill :: Path -> IO ()
+fill :: Path -> IO (Rectangle Double)
 fill p = do
     -- Make sure
     let p'  = execState closePath p
         vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p'^.pathPoints ]
         uvs = map realToFrac $ concat [ [r,g,b,a] | Color4 r g b a <- p'^.pathColors ]
+        (l,rt) = p^.pathXBounds
+        (t,bm) = p^.pathYBounds
     (i,j) <- bindAndBufferVertsColors vs uvs
     drawArrays Polygon 0 $ p'^.pathLength
     deleteObjectNames [i,j]
+    return $ Rectangle l t (rt - l) (bm - t)
 
 
-fillPath :: State Path () -> IO ()
+fillPath :: State Path () -> IO (Rectangle Double)
 fillPath = fill . execNewPath
 
 
