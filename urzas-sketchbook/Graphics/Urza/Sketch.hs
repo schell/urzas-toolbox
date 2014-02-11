@@ -1,41 +1,38 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Graphics.Urza.Sketch where
+module Graphics.Urza.Sketch (
+    module T,
+    circleAt,
+    circleOfNAt,
+    closePath,
+    curveAlong,
+    curveTo,
+    execNewPath,
+    fill,
+    fillPath,
+    gradientLineTo,
+    intervals,
+    lineTo,
+    moveTo,
+    newPath,
+    pushPoint,
+    rectangleAt,
+    setColor,
+    setPoint,
+    stroke,
+    strokePath,
+    pointToTuple
+) where
 
-import Graphics.Rendering.OpenGL
+import Graphics.Urza.Sketch.Types as T
 import Graphics.Urza.Sketch.Shader.Shape
+import Graphics.Rendering.OpenGL
 import Control.Lens
 import Control.Monad
 import Control.Monad.State
 
 
-data Rectangle a = Rectangle a a a a
-
-
-data Point2d = Point2d Double Double deriving (Show, Eq, Ord)
-
-
-toTuplePoint :: Point2d -> (Double, Double)
-toTuplePoint (Point2d x y) = (x, y)
-
-
-type PathColor = Color4 Double
-
-
-type PathRange = (Double, Double)
-
-
-data Path = Path { _pathPoints :: [Point2d]
-                 , _pathColors :: [PathColor]
-                 , _pathLength :: NumArrayIndices
-                 , _pathColor  :: PathColor
-                 , _pathPoint  :: Point2d
-                 , _pathXBounds:: PathRange
-                 , _pathYBounds:: PathRange
-                 }
-makeLenses ''Path
-
-
-type BezierCurve = [Point2d]
+pointToTuple :: Point2d -> (Double, Double)
+pointToTuple (Point2d x y) = (x, y)
 
 
 -- | Creates a new default path.
