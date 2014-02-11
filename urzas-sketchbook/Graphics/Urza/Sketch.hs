@@ -9,6 +9,7 @@ module Graphics.Urza.Sketch (
     execNewPath,
     fill,
     fillPath,
+    fillPath_,
     gradientLineTo,
     intervals,
     lineTo,
@@ -20,6 +21,7 @@ module Graphics.Urza.Sketch (
     setPoint,
     stroke,
     strokePath,
+    strokePath_,
     pointToTuple
 ) where
 
@@ -193,6 +195,10 @@ strokePath :: State Path () -> IO (Rectangle Double)
 strokePath = stroke . execNewPath
 
 
+strokePath_ :: State Path () -> IO ()
+strokePath_ s = strokePath s >> return ()
+
+
 -- | Draws a filled path as a polygon into the current opengl context.
 -- We should probably be doing earclipping and sending tris to the gpu but
 -- drawing in Polygon primitive mode works for now.
@@ -212,6 +218,10 @@ fill p = do
 
 fillPath :: State Path () -> IO (Rectangle Double)
 fillPath = fill . execNewPath
+
+
+fillPath_ :: State Path () -> IO ()
+fillPath_ s = fillPath s >> return ()
 
 
 deCasteljau :: Double -> [(Double, Double)] -> (Double, Double)

@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
-import Graphics.Rendering.OpenGL hiding (Matrix, Rectangle)
+import Graphics.Rendering.OpenGL hiding (Matrix)
 import Graphics.Urza.Sketch.Math
 import Graphics.Urza.Sketch.Shader.Shape as S
 import Graphics.Urza.Sketch.Shader.Text as T
@@ -78,7 +78,7 @@ main = do
     let load tr = loadCharMap tr $ map toEnum [33..126]
         font = "/Users/schell/Library/Fonts/Proxima Nova Alt Black.otf"
     sshader <- makeShapeShaderProgram
-    textR  <- makeTextRenderer font 32 >>= load
+    textR  <- makeTextRenderer font 16 >>= load
     appVar <- newMVar newApp
 
     forever $ do
@@ -103,20 +103,12 @@ main = do
             (App c _) <- takeMVar appVar
             putMVar appVar (App c [])
 
+        makeContextCurrent $ Just window
         clearColor $= Color4 0 0 0 1
         clear [ColorBuffer, DepthBuffer]
 
-        -- Drawing a red square.
-        makeContextCurrent $ Just window
-
         Rectangle x y w h <- drawShapes sshader (Size winW winH) $ do
-            -- Draw the control points of the curve.
-            forM_ cachedCurve $ \(x, y) ->
-                fill $ execNewPath $ do
-                    setColor $ Color4 0.5 0.5 0.5 1
-                    rectangleAt (x-2) (y-2) 4 4
-
-            -- Draw the curve.
+            -- Draw the cached curve.
             stroke $ execNewPath $ do
                 setColor $ Color4 0 1 0 1
                 curveAlong cachedCurve 40
@@ -127,14 +119,21 @@ main = do
         currentProgram $= Just (textR^.shader.T.program)
         textR^.shader.T.setProjection $ pj
         textR^.shader.T.setModelview $ mv
-        --textR^.shader.setTextColor $ Color4 1 0 0 1
-        Size tw th <- drawTextAt' textR (Position 0 0) "Blah blah blah!"
+        Rectangle tx ty tw th <- drawTextAt' textR (Position 10 10) $ 
+            concat [ "Drawing operations return\n"
+                   , "the bounding box that contains the draw.\n"
+                   , "So you can measure things!"
+                   ]
 
         drawShapes sshader (Size winW winH) $ do
-            fill $ execNewPath $ do
+            fillPath_ $ do
                 setColor $ Color4 1 0 0 0.3
-                rectangleAt 0 0 (fromIntegral tw) (fromIntegral th)
-            fill $ execNewPath $ do
+                rectangleAt tx ty tw th
+            strokePath_ $ do
+                setColor $ Color4 0 1 0 1
+                rectangleAt tx ty tw th
+
+            fillPath_ $ do
                 setColor $ Color4 0 0 1 0.3
                 rectangleAt x y w h
 
@@ -145,6 +144,7 @@ main = do
         when shouldClose exitSuccess
 
 
+drawShapes :: ShapeShaderProgram -> Size -> IO b -> IO b
 drawShapes sshader s@(Size w h) m = do
     let pj = concat $ orthoMatrix 0 (fromIntegral w) 0 (fromIntegral h) 0 1
         mv = concat $ identityN 4

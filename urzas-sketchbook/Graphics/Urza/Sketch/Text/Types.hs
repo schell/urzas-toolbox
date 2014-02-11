@@ -2,6 +2,7 @@
 module Graphics.Urza.Sketch.Text.Types where
 
 import           Graphics.Urza.Sketch.Shader.Text.Types
+import           Graphics.Urza.Sketch.Types
 import           Graphics.Rendering.OpenGL
 import           Control.Lens
 import qualified Data.IntMap as IM
@@ -34,10 +35,11 @@ data Atlas = Atlas { _atlasFontFilePath  :: FilePath
 makeLenses ''Atlas
 
 
-data BufferAccumulator = BufferAcc { _buffAccAtlas :: Atlas
-                                   , _buffAccGeom  :: BufferGeom
-                                   , _buffAccPos   :: Position
-                                   , _buffAccSize  :: Size
+data BufferAccumulator = BufferAcc { _buffAccAtlas   :: Atlas
+                                   , _buffAccGeom    :: BufferGeom
+                                   , _buffAccPos     :: Position
+                                   , _buffAccXBounds :: Range Double
+                                   , _buffAccYBounds :: Range Double
                                    }
 makeLenses ''BufferAccumulator
 

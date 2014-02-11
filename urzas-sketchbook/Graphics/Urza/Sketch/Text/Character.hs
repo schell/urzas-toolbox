@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Graphics.Urza.Sketch.Text.Character where
 
+import           Graphics.Urza.Sketch.Types
 import           Graphics.Urza.Sketch.Utils
 import           Graphics.Urza.Sketch.Math
 import           Graphics.Urza.Sketch.Text.Types
@@ -148,54 +149,74 @@ drawChar r pen char =
             return pen'
 
 
+updateRange :: Ord a => a -> Range a -> Range a
+updateRange n (minr, maxr) = (min n minr, max n maxr)
+
+
+extractRanges :: [Double] -> (Range Double, Range Double)
+extractRanges verts = (xr, yr)
+    where xr = (foldl min (1/0) xxs, foldl max (-1/0) xxs)
+          yr = (foldl min (1/0) yys, foldl max (-1/0) yys)
+          (xxs, yys) = split mempty verts
+
+
+split :: ([a], [a]) -> [a] -> ([a], [a])
+split (xs,ys) (x:y:vs) = let (xs',ys') = split mempty vs
+                         in (concat [xs, [x], xs'], concat [ys, [y], ys'])
+split xs'ys _          = xs'ys
+
+
+appendRange :: Ord a => Range a -> Range a -> Range a
+appendRange a = updateRange (fst a) . updateRange (snd a)
+
+
 -- | Produces and accumulates the geometry for rendering a string of characters
 -- into a buffer accumulator.
 geometryForString :: BufferAccumulator -> String -> BufferAccumulator
-geometryForString b = foldl foldBuffer b
+geometryForString b@(BufferAcc _ _ (Position ox _) _ _) = foldl foldBuffer b
     where foldBuffer b' '\n' = flip execState b' $ do
               pxS <- fmap fromIntegral $ use $ buffAccAtlas.atlasPxSize
-              Position _ y <- use buffAccPos
+              Position _ py <- use buffAccPos
               -- Reset the pen pos x, also drop the pen pos y down a line
               -- and return that result.
-              Position _ y' <- buffAccPos <.= Position 0 (y + pxS)
-              -- Update the max height.
-              buffAccSize %= (\(Size w _) -> Size w $ y' + pxS)
+              Position px' py' <- buffAccPos <.= Position ox (py + pxS)
+              -- Update the current ranges.
+              buffAccXBounds %= updateRange (fromIntegral px')
+              buffAccYBounds %= updateRange (fromIntegral $ py' + pxS)
+
           foldBuffer b' c    = accumulateBuffer b' c
 
 
 -- | Accumulates the geometry of a character into a buffer accumulator.
 accumulateBuffer :: Enum a => BufferAccumulator -> a -> BufferAccumulator
-accumulateBuffer b@(BufferAcc atls _ (Position penX penY) _) c
+accumulateBuffer b@(BufferAcc atls _ (Position penX penY) _ _) c
     -- In the case of ' '.
     | fromEnum c == 32 =
-        let (Position penX' penY') =
+        let pxS = atls^.atlasPxSize
+            (Position penX' penY') =
                 case IM.lookup 0 $ atls^.atlasMap of
                     -- Update the x pen pos by the px size.
-                    Nothing -> (Position (penX + atls^.atlasPxSize) penY)
+                    Nothing -> (Position (penX + pxS) penY)
                     Just fc -> advancePenPosition (Position penX penY) fc
         in flip execState b $ do
             buffAccPos .= Position penX' penY'
-            Size sw sh <- use buffAccSize
-            when (penX' > sw) $
-                -- Update the width.
-                buffAccSize .= Size penX' sh
+            buffAccXBounds %= updateRange (fromIntegral penX')
+            buffAccYBounds %= updateRange (fromIntegral $ penY' + pxS)
 
     | otherwise = case IM.lookup (fromEnum c) $ atls^.atlasMap of
         Just fc -> flip execState (loadCharGeomIntoBuffer b fc) $ do
-            Position x _ <- use buffAccPos
-            Size sw sh <- use buffAccSize
-            when (x > sw) $
-                -- Update the width to the x pos.
-                buffAccSize .= Size x sh
+            let pxS = atls^.atlasPxSize
+            Position x y <- use buffAccPos
+            buffAccXBounds %= updateRange (fromIntegral x)
+            buffAccYBounds %= updateRange (fromIntegral $ y + pxS)
 
         -- If there is no character just move the pen forward.
         Nothing -> flip execState b $ do
+            let pxS = atls^.atlasPxSize
             -- Update pen pos x and return that result.
-            Position x' _ <- buffAccPos <%= \(Position x y) -> (Position (x + atls^.atlasPxSize) y)
-            Size sw sh <- use buffAccSize
-            when (x' > sw) $
-                -- Update the width to the new x pos.
-                buffAccSize .= Size x' sh
+            Position x' y' <- buffAccPos <%= \(Position x y) -> (Position (x + pxS) y)
+            buffAccXBounds %= updateRange (fromIntegral x')
+            buffAccYBounds %= updateRange (fromIntegral $ y' + pxS)
 
 
 -- | Loads character vertices and uv coords into a buffer accumulator.
@@ -208,12 +229,12 @@ loadCharVs :: BufferAccumulator -> FontChar -> BufferAccumulator
 loadCharVs b fc =
     let px       = b^.buffAccAtlas.atlasPxSize
         (vs, pp) = charVs fc (b^.buffAccPos) px
+        (xr, yr) = extractRanges $ map realToFrac vs
     in flip execState b $ do
         buffAccGeom %= (`mappend` (vs, []))
-        Position _ y <- buffAccPos <.= pp
-        Size sw sh   <- use buffAccSize
-        when (y + px > sh) $
-            buffAccSize .= (Size sw $ y + px)
+        buffAccPos .= pp
+        buffAccXBounds %= (xr `appendRange`)
+        buffAccYBounds %= (yr `appendRange`)
 
 
 -- | Loads a list of character uv coords into a buffer accumulator.

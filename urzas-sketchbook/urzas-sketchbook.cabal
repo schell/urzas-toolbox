@@ -51,7 +51,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Graphics.Urza.Sketch, Graphics.Urza.Sketch.LoadTexture, Graphics.Urza.Sketch.Math, Graphics.Urza.Sketch.Text, Graphics.Urza.Sketch.Utils, Graphics.Urza.Sketch.Shader.Shape, Graphics.Urza.Sketch.Shader.Text, Graphics.Urza.Sketch.Shader.Types, Graphics.Urza.Sketch.Shader.Utils, Graphics.Urza.Sketch.Shader.Shape.Types, Graphics.Urza.Sketch.Shader.Text.Types, Graphics.Urza.Sketch.Text.Character, Graphics.Urza.Sketch.Text.Font, Graphics.Urza.Sketch.Text.Renderer, Graphics.Urza.Sketch.Text.Types
+  exposed-modules:     Graphics.Urza.Sketch, Graphics.Urza.Sketch.Types, Graphics.Urza.Sketch.LoadTexture, Graphics.Urza.Sketch.Math, Graphics.Urza.Sketch.Text, Graphics.Urza.Sketch.Utils, Graphics.Urza.Sketch.Shader.Shape, Graphics.Urza.Sketch.Shader.Text, Graphics.Urza.Sketch.Shader.Types, Graphics.Urza.Sketch.Shader.Utils, Graphics.Urza.Sketch.Shader.Shape.Types, Graphics.Urza.Sketch.Shader.Text.Types, Graphics.Urza.Sketch.Text.Character, Graphics.Urza.Sketch.Text.Font, Graphics.Urza.Sketch.Text.Renderer, Graphics.Urza.Sketch.Text.Types
 
   -- Modules included in this library but not exported.
   -- other-modules:

@@ -4,13 +4,14 @@ module Graphics.Urza.Sketch.Text.Renderer (
     makeAtlas,
     drawTextAt,
     drawTextAt',
-    loadCharMap,
+    loadCharMap
 ) where
 
 import           Graphics.Urza.Sketch.Math
 import           Graphics.Urza.Sketch.Text.Character
 import           Graphics.Urza.Sketch.Text.Font
 import           Graphics.Urza.Sketch.Text.Types
+import           Graphics.Urza.Sketch.Types
 import           Graphics.Urza.Sketch.Shader.Text
 import           Graphics.Rendering.OpenGL hiding (Bitmap, Matrix)
 import           Control.Monad
@@ -19,7 +20,7 @@ import           Data.Monoid
 import           System.Directory
 import           System.Exit
 import qualified Data.IntMap as IM
-import Debug.Trace
+
 
 makeAtlas :: FilePath -> GLsizei -> IO Atlas
 makeAtlas fp px = do
@@ -41,10 +42,12 @@ drawTextAt r (Position x y) = foldM_ foldCharacter (Position x y)
           foldCharacter p c          = drawChar r p c
 
 
-drawTextAt' :: TextRenderer -> PenPosition -> String -> IO Size
+drawTextAt' :: TextRenderer -> PenPosition -> String -> IO (Rectangle Double)
 drawTextAt' r pen s = do
-    let (BufferAcc _ (vs,uvs) _ size) = geometryForString (BufferAcc (r^.atlas) mempty pen (Size 0 0)) s
-        numIndices = floor $ ((fromIntegral $ length vs) / 2.0 :: Double)
+    let (BufferAcc _ (vs,uvs) _ (l,rt) (t,bm)) = geometryForString emptyAcc s
+        emptyAcc     = BufferAcc (r^.atlas) mempty pen (fromIntegral x, -1/0) (fromIntegral y, -1/0)
+        Position x y = pen
+        numIndices   = floor $ ((fromIntegral $ length vs) / 2.0 :: Double)
     (i,j) <- bindAndBufferVertsUVs vs uvs
     texture Texture2D $= Enabled
     activeTexture $= TextureUnit 0
@@ -53,7 +56,7 @@ drawTextAt' r pen s = do
     drawArrays Triangles 0 numIndices
     bindBuffer ArrayBuffer $= Nothing
     deleteObjectNames [i,j]
-    return size
+    return $ Rectangle l t (rt - l) (bm - t)
 
 
 makeTextRenderer :: FilePath -> GLsizei -> IO TextRenderer

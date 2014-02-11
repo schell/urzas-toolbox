@@ -14,7 +14,7 @@ data Point2d = Point2d Double Double deriving (Show, Eq, Ord)
 type PathColor = Color4 Double
 
 
-type PathRange = (Double, Double)
+type Range a = (a, a)
 
 
 data Path = Path { _pathPoints :: [Point2d]
@@ -22,8 +22,8 @@ data Path = Path { _pathPoints :: [Point2d]
                  , _pathLength :: NumArrayIndices
                  , _pathColor  :: PathColor
                  , _pathPoint  :: Point2d
-                 , _pathXBounds:: PathRange
-                 , _pathYBounds:: PathRange
+                 , _pathXBounds:: Range Double
+                 , _pathYBounds:: Range Double
                  }
 makeLenses ''Path
 
