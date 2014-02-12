@@ -1,12 +1,35 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Graphics.Urza.UI where
+module Graphics.Urza.UI (
+    -- Scene
+    Scene(..),
+    renderScene,
+    SceneList,
+    newScene,
+    Rotation(..),
+    -- NodeRenderer
+    -- SceneText
+    textFont,
+    textWidth,
+    textString,
+    textColor,
+    -- SceneNode
+    node,
+    nodeName,
+    nodePosition,
+    nodeSize,
+    nodeScale,
+    nodeRotation,
+    drawShapes,
+    drawText
+) where
 
-import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get)
+import           Graphics.Urza.UI.Types
 import           Graphics.Urza.Sketch.Math
 import           Graphics.Urza.Sketch.Shader.Text as T
 import           Graphics.Urza.Sketch.Shader.Shape as S
 import           Graphics.Urza.Sketch.Text.Renderer
 import           Graphics.Urza.Sketch.Text.Types
+import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get)
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State
@@ -15,11 +38,32 @@ import qualified Data.Map as M
 import qualified Data.IntMap as I
 
 
-type SizeAtlas = I.IntMap Atlas
+newScene :: Size -> FilePath -> SceneList -> IO Scene 
+newScene windowSize fontDir gui = do
+    tshader <- makeTextShaderProgram
+    sshader <- makeShapeShaderProgram
+
+    let renderer = NodeRenderer { _rendererWindowSize  = windowSize 
+                                , _rendererModelview   = identityN 4
+                                , _rendererShapeShader = sshader
+                                , _rendererTextShader  = tshader
+                                , _rendererFontAtlas   = mempty
+                                , _rendererFontDir     = fontDir
+                                }
+
+    return $ Scene { _sceneNodeRenderer = renderer
+                   , _sceneList = gui
+                   }
 
 
-type FontAtlas = M.Map FilePath SizeAtlas
-
+renderScene :: Size -> Scene -> IO Scene
+renderScene (Size w h) scene = do
+    let nodes    = scene^.sceneList
+        renderer = scene^.sceneNodeRenderer
+    (r', bbs) <- renderList (renderer & rendererWindowSize .~ Size w h) nodes 
+    print bbs 
+    return $ Scene r' nodes 
+ 
 
 lookupAtlas :: FilePath -> Int -> FontAtlas -> Maybe Atlas
 lookupAtlas font size fAtlas = do
@@ -36,33 +80,6 @@ insertAtlas font size atls fAtls = M.insert font sizeAtls' fAtls
            sizeAtls' = I.insert size atls sizeAtls
 
 
-data NodeRenderer = NodeRenderer { _rendererWindowSize  :: Size
-                                 , _rendererModelview   :: Matrix GLfloat
-                                 , _rendererShapeShader :: ShapeShaderProgram
-                                 , _rendererTextShader  :: TextShaderProgram
-                                 , _rendererFontAtlas   :: FontAtlas
-                                 , _rendererFontDir     :: FilePath
-                                 }
-makeLenses ''NodeRenderer
-
-
-type Draw = NodeRenderer -> IO NodeRenderer
-
-
-data Scale = Scale GLfloat GLfloat
-
-
-data Rotation = Rotation GLfloat
-
-
-data SceneText = SceneText { _textFont   :: FilePath
-                               , _textWidth  :: Int
-                               , _textString :: String
-                               , _textColor  :: Color4 GLfloat
-                               }
-makeLenses ''SceneText
-
-
 emptySceneText :: SceneText
 emptySceneText = SceneText { _textFont = ""
                                , _textWidth = 12
@@ -71,27 +88,15 @@ emptySceneText = SceneText { _textFont = ""
                                }
 
 
-data SceneNode = SceneNode { _nodeName      :: String
-                           , _nodeTexture   :: Maybe TextureObject
-                           , _nodePosition  :: Position
-                           , _nodeSize      :: Size
-                           , _nodeScale     :: Scale
-                           , _nodeRotation  :: Rotation
-                           , _nodeDraws     :: [Draw]
-                           , _nodeChildren  :: Int
-                           }
-makeLenses ''SceneNode
-
-
 emptyNode :: SceneNode
 emptyNode = SceneNode { _nodeName = ""
-                      , _nodeTexture = Nothing
                       , _nodePosition = Position 0 0
                       , _nodeSize = Size 0 0
                       , _nodeScale = Scale 1 1
                       , _nodeRotation = Rotation 0
                       , _nodeDraws = []
                       , _nodeChildren = 0
+                      , _nodeCache = Nothing
                       }
 
 
@@ -106,9 +111,6 @@ nodeTransform n =
     in foldl multiply (identityN 4) [t,r,s]
 
 
-type SceneList = [SceneNode]
-
-
 node :: State SceneNode SceneList -> SceneList
 node s = let (list,n) = runState s emptyNode
              n' = n{_nodeChildren = length list}
@@ -117,11 +119,6 @@ node s = let (list,n) = runState s emptyNode
 
 drawText :: State SceneText () -> State SceneNode ()
 drawText s = nodeDraws %= (++ [renderText (execState s emptySceneText)])
-
-
-data Scene = Scene { _sceneNodeRenderer :: NodeRenderer
-                   , _sceneList         :: SceneList
-                   }
 
 
 renderText :: SceneText -> Draw
@@ -145,16 +142,15 @@ renderText t r = do
     ts^.T.setProjection $ concat pj
     ts^.T.setModelview $ concat mv
     ts^.setTextColor $ t^.textColor
-    Size w h <- drawTextAt' tr (Position 0 0) (t^.textString)
-    print (w,h)
-    return $ r & rendererFontAtlas %~ (insertAtlas font size (tr'^.atlas))
+    rectangle <- drawTextAt' tr (Position 0 0) (t^.textString)
+    return $ (r & rendererFontAtlas %~ (insertAtlas font size (tr'^.atlas)), rectangle)
 
 
-drawShapes :: IO () -> State SceneNode ()
+drawShapes :: IO BoundingBox -> State SceneNode ()
 drawShapes f = nodeDraws %= (++ [renderShapes f])
 
 
-renderShapes :: IO () -> Draw
+renderShapes :: IO BoundingBox -> Draw
 renderShapes f r = do
     let Size w h = r^.rendererWindowSize
         pj  = orthoMatrix 0 (fromIntegral w) 0 (fromIntegral h) 0 1
@@ -164,12 +160,12 @@ renderShapes f r = do
     s^.setIsTextured $ False
     s^.S.setProjection $ concat pj
     s^.S.setModelview $ concat mv
-    f
-    return r
+    bb <- f
+    return (r, bb)
 
 
-renderList :: NodeRenderer -> SceneList -> IO NodeRenderer
-renderList r [] = return r
+renderList :: NodeRenderer -> SceneList -> IO (NodeRenderer, [BoundingBox])
+renderList r [] = return (r, []) 
 renderList r (n:list) = do
     let nodes = take (n^.nodeChildren) list
         rest  = drop (n^.nodeChildren) list
@@ -177,10 +173,19 @@ renderList r (n:list) = do
         r'    = r & rendererModelview %~ (`multiply` nodeTransform n)
     -- Draw this node and update our renderer.
     -- This allows us to load fonts and text as we go along.
-    r'' <- foldM (\rndr f -> f rndr) r' (n^.nodeDraws)
+    (r'', bbs) <- foldM accumRendererAndBoxes (r', []) (n^.nodeDraws)
+    -- Fold all the bounding boxes up into one.
+    let bb = case bbs of
+                 []   -> mempty
+                 b:[] -> b
+                 b:bs -> foldl mappend b bs  
     -- Draw subnodes with this modelview.
-    r''' <- renderList r'' nodes
+    (r''', nodebbs) <- renderList r'' nodes
     -- Draw the rest of the nodes without this modelview.
-    renderList (r''' & rendererModelview .~ mv) rest
+    (r'''', restbbs) <- renderList (r''' & rendererModelview .~ mv) rest
+    return (r'''', [bb] ++ nodebbs ++ restbbs)
 
-
+accumRendererAndBoxes :: (NodeRenderer, [BoundingBox]) -> Draw -> IO (NodeRenderer, [BoundingBox]) 
+accumRendererAndBoxes (r, bbs) f = do
+    (r', bb) <- f r 
+    return (r', bbs ++ [bb])

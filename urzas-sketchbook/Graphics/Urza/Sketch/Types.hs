@@ -5,7 +5,7 @@ import Graphics.Rendering.OpenGL
 import Control.Lens
 
 
-data Rectangle a = Rectangle a a a a
+data Rectangle a = Rectangle a a a a deriving (Show, Ord, Eq)
 
 
 data Point2d = Point2d Double Double deriving (Show, Eq, Ord)

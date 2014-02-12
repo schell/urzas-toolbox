@@ -70,7 +70,7 @@ main :: IO ()
 main = do
     True <- GLFW.init
     defaultWindowHints
-    wvar <- makeNewWindow (100,100) (500,500) "Draw API"
+    wvar <- makeNewWindow (100,100) (500,500) "Urza's Sketchbook"
 
     blend $= Enabled
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
@@ -104,13 +104,13 @@ main = do
             putMVar appVar (App c [])
 
         makeContextCurrent $ Just window
-        clearColor $= Color4 0 0 0 1
+        clearColor $= Color4 0.13 0.13 0.13 1
         clear [ColorBuffer, DepthBuffer]
 
         Rectangle x y w h <- drawShapes sshader (Size winW winH) $ do
             -- Draw the cached curve.
             stroke $ execNewPath $ do
-                setColor $ Color4 0 1 0 1
+                setColor $ Color4 0.76 0.8 0.76 1
                 curveAlong cachedCurve 40
 
         let pj = concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
@@ -119,24 +119,28 @@ main = do
         currentProgram $= Just (textR^.shader.T.program)
         textR^.shader.T.setProjection $ pj
         textR^.shader.T.setModelview $ mv
-        Rectangle tx ty tw th <- drawTextAt' textR (Position 10 10) $ 
-            concat [ "Drawing operations return\n"
-                   , "the bounding box that contains the draw.\n"
-                   , "So you can measure things!"
-                   ]
+        textR^.shader.setTextColor $ Color4 0.76 0.76 0.76 1
+        let drawText = drawTextAt' textR (Position 10 10) $
+                concat [ "Drawing operations return\n"
+                       , "the bounding box that contains the draw.\n"
+                       , "So you can measure things!"
+                       ]
+        Rectangle tx ty tw th <- drawText
 
         drawShapes sshader (Size winW winH) $ do
             fillPath_ $ do
-                setColor $ Color4 1 0 0 0.3
+                setColor $ Color4 0.33 0.33 0.33 1
                 rectangleAt tx ty tw th
             strokePath_ $ do
-                setColor $ Color4 0 1 0 1
+                setColor $ Color4 0.76 0.76 0.76 1
                 rectangleAt tx ty tw th
 
             fillPath_ $ do
-                setColor $ Color4 0 0 1 0.3
+                setColor $ Color4 0.33 0.33 1 0.3
                 rectangleAt x y w h
 
+        currentProgram $= Just (textR^.shader.T.program)
+        _ <- drawText
 
         swapBuffers window
         shouldClose <- windowShouldClose window

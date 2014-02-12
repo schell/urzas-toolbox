@@ -4,16 +4,12 @@ module Main where
 import           Graphics.Urza.Window as Urza
 import           Graphics.Urza.UI
 import           Graphics.Urza.Sketch
-import           Graphics.Urza.Sketch.Math
-import           Graphics.Urza.Sketch.Shader.Text as T
-import           Graphics.Urza.Sketch.Shader.Shape as S
 import           Control.Concurrent.MVar
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get)
 import           Control.Lens
 import           Control.Monad
 import           System.Exit
 import           System.Directory
-import           Data.Monoid
 
 
 data App = App { _appCursor :: Position }
@@ -76,21 +72,8 @@ main :: IO ()
 main = do
     wvar <- initUrza (100,100) (800,600) "Purely Functional Scene Graph"
     fontDir <- fmap (++ "/assets/font/") getCurrentDirectory
-
-    tshader <- makeTextShaderProgram
-    sshader <- makeShapeShaderProgram
-
-    let renderer = NodeRenderer { _rendererWindowSize  = Size 800 600
-                                , _rendererModelview   = identityN 4
-                                , _rendererShapeShader = sshader
-                                , _rendererTextShader  = tshader
-                                , _rendererFontAtlas   = mempty
-                                , _rendererFontDir     = fontDir
-                                }
-
-    sceneVar <- newMVar $ Scene { _sceneNodeRenderer = renderer
-                                , _sceneList = gui
-                                }
+    scene <- newScene (Size 800 600) fontDir gui
+    sceneVar <- newMVar scene
 
     forever $ do
         pollEvents
@@ -105,12 +88,7 @@ main = do
         clear [ColorBuffer, DepthBuffer]
 
         -- Render the display list.
-        modifyMVar_ sceneVar $ \(Scene r ns) -> do
-            -- Render the scene after updating the renderer's window size.
-            r' <- renderList (r & rendererWindowSize .~ Size winW winH) ns
-            return $ Scene r' ns
-            --return $ Scene r ns
-
+        modifyMVar_ sceneVar $ renderScene (Size winW winH)
         swapBuffers window
         shouldClose <- windowShouldClose window
         putMVar wvar ([],window)

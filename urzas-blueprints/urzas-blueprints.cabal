@@ -54,7 +54,7 @@ library
   exposed-modules:     Graphics.Urza.UI
 
   -- Modules included in this library but not exported.
-  -- other-modules:
+  other-modules:       Graphics.Urza.UI.Types
 
   -- LANGUAGE extensions used by modules in this package.
   other-extensions:    TemplateHaskell

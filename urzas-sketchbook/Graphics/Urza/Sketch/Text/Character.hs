@@ -1,5 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Graphics.Urza.Sketch.Text.Character where
+module Graphics.Urza.Sketch.Text.Character (
+    charIsLoaded,
+    geometryForString,
+    loadChar,
+    loadCharMap,
+    loadCharacter,
+    drawChar
+) where
 
 import           Graphics.Urza.Sketch.Types
 import           Graphics.Urza.Sketch.Utils
