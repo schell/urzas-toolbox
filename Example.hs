@@ -5,7 +5,7 @@ import           Urza
 --import           Graphics.Urza.UI
 --import           Graphics.Urza.Sketch
 import           Control.Concurrent.MVar
-import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get)
+import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels)
 import           Control.Lens hiding ((#))
 import           Control.Monad
 import           System.Exit
@@ -78,16 +78,17 @@ main = do
     r <- makeRenderer (fontDir ++ "/" ++ "Deutsch.ttf") 128 >>=
         flip loadCharMap txt
     let bounds = boundsOfRenderedText r txt (Position 0 0)
-
+        Size bw bh = unsizeRectangle id bounds
+    print bounds
 
     currentProgram $= Just (r^.shader.program)
-    r^.shader.setProjection $ concat $ orthoMatrix 0 800 (-1) 600 0 1
-    r^.shader.setModelview $ concat $ identityN 4
-
-    r^.shader.setIsTextured $ False
-    r^.shader.setColorIsReplaced $ False
 
     stex <- unsizeRectangle renderToTexture bounds RGBA' $ do
+        r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral bw +1) (-1) (fromIntegral bh +1) 0 1
+        r^.shader.setModelview $ concat $ identityN 4
+        r^.shader.setIsTextured $ False
+        r^.shader.setColorIsReplaced $ False
+
         fillPath_ $ do
             setColor $ Color4 1 0 0 1
             uncurryRectangle rectangleAt bounds
@@ -117,8 +118,11 @@ main = do
 
         r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
 
-        drawTexture (r^.shader) stex 0 0 800 600
-        drawTexture (r^.shader) ttex 0 0 800 600
+        --drawTexture (r^.shader) stex $ Rectangle 0 0 800 600
+        drawTexture (r^.shader) ttex $ Rectangle 0 0 800 600
+        --drawTexture (r^.shader) stex $ Rectangle 10 10 532 266
+        --drawTexture (r^.shader) ttex $ Rectangle 10 10 100 100
+        drawPixels (r^.shader) ttex (Rectangle 0 0.5 0.5 0.5) (Rectangle 10 10 100 100)
 
         -- Render the display list.
 --        modifyMVar_ sceneVar $ renderScene (Size winW winH)
