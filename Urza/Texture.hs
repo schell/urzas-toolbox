@@ -1,10 +1,14 @@
 {-# LANGUAGE TypeFamilies #-}
 module Urza.Texture where
 
+import Urza.Types
+import Urza.Shader
+import Urza.Error
+import Urza.Math
 import Codec.Picture
-import Graphics.Urza.Sketch.Utils
-import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL hiding (Matrix)
 import Control.Monad
+import Control.Lens
 import Foreign.Ptr
 import System.Exit (exitFailure)
 import Data.Vector.Storable         (unsafeWith, Storable)
@@ -122,3 +126,23 @@ renderToTexture (Size w h) fmt ioF = do
     return tex
 
 
+drawTexture :: (Integral a, Num a, Show a) => ShaderProgram -> TextureObject -> a -> a -> a -> a -> IO ()
+drawTexture shd tex x y w h = do
+    let [x',y',w',h'] = map fromIntegral [x,y,w,h] :: [GLfloat]
+        mv = foldl multiply (identityN 4 :: Matrix GLfloat) [scaleMatrix3d w' h' 1, translationMatrix3d x' y' 0]
+        unit = quad 0 0 1 1
+        unit'= texQuad 0 0 1 1
+    currentProgram $= Just (shd^.program)
+    shd^.setModelview $ concat mv
+    shd^.setIsTextured $ True
+    shd^.setColorIsReplaced $ False
+    shd^.setSampler $ Index1 0
+    (i,j) <- bindAndBufferVertsUVs unit unit'
+    activeTexture $= TextureUnit 0
+    textureBinding Texture2D $= Just tex
+    drawArrays Triangles 0 6
+    deleteObjectNames [i,j]
+
+
+drawPixels :: Renderer -> TextureObject -> Rectangle a -> Rectangle a -> IO ()
+drawPixels = undefined

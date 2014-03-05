@@ -66,22 +66,7 @@ import           System.Directory
 --                                  textWidth .= 16
 --                                  textString .= "Serious business."
 --                              return [])
-drawTexture :: (Integral a, Num a, Show a) => Renderer -> TextureObject -> a -> a -> a -> a -> IO ()
-drawTexture rnd tex x y w h = do
-    let [x',y',w',h'] = map fromIntegral [x,y,w,h] :: [GLfloat] 
-        mv = foldl multiply (identityN 4 :: Matrix GLfloat) [scaleMatrix3d w' h' 1, translationMatrix3d x' y' 0]
-        unit = quad 0 0 1 1 
-        unit'= texQuad 0 0 1 1
-    currentProgram $= Just (rnd^.shader.program)
-    rnd^.shader.setModelview $ concat mv
-    rnd^.shader.setIsTextured $ True
-    rnd^.shader.setColorIsReplaced $ False
-    rnd^.shader.setSampler $ Index1 0
-    (i,j) <- bindAndBufferVertsUVs unit unit' 
-    activeTexture $= TextureUnit 0
-    textureBinding Texture2D $= Just tex
-    drawArrays Triangles 0 6
-    deleteObjectNames [i,j]
+
 
 
 main :: IO ()
@@ -94,7 +79,7 @@ main = do
         flip loadCharMap txt
     let bounds = boundsOfRenderedText r txt (Position 0 0)
 
-        
+
     currentProgram $= Just (r^.shader.program)
     r^.shader.setProjection $ concat $ orthoMatrix 0 800 (-1) 600 0 1
     r^.shader.setModelview $ concat $ identityN 4
@@ -114,7 +99,7 @@ main = do
     r^.shader.setColorIsReplaced $ True
     r^.shader.setTextColor $ Color4 1 1 1 1
 
-    ttex <- unsizeRectangle renderToTexture bounds RGBA' $ do 
+    ttex <- unsizeRectangle renderToTexture bounds RGBA' $ do
         drawTextAt r (Position 0 0) txt
 
 --    scene <- newScene (Size 800 600) fontDir gui
@@ -131,10 +116,10 @@ main = do
         clear [ColorBuffer, DepthBuffer]
 
         r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
-        
-        drawTexture r stex 0 0 800 600  
-        drawTexture r ttex 0 0 800 600  
-        
+
+        drawTexture (r^.shader) stex 0 0 800 600
+        drawTexture (r^.shader) ttex 0 0 800 600
+
         -- Render the display list.
 --        modifyMVar_ sceneVar $ renderScene (Size winW winH)
         swapBuffers window
