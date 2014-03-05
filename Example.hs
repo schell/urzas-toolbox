@@ -2,6 +2,7 @@
 module Main where
 
 import           Urza
+import qualified Urza.Color as Color
 --import           Graphics.Urza.UI
 --import           Graphics.Urza.Sketch
 import           Control.Concurrent.MVar
@@ -75,33 +76,13 @@ main = do
     wvar <- initUrza (100,100) (800,600) "Purely Functional User Interface"
 
     fontDir <- fmap (++ "/assets/font/") getCurrentDirectory
+    imgDir  <- fmap (++ "/assets/img/") getCurrentDirectory
+
     r <- makeRenderer (fontDir ++ "/" ++ "Deutsch.ttf") 128 >>=
         flip loadCharMap txt
     let bounds = boundsOfRenderedText r txt (Position 0 0)
         Size bw bh = unsizeRectangle id bounds
     print bounds
-
-    currentProgram $= Just (r^.shader.program)
-
-    stex <- unsizeRectangle renderToTexture bounds RGBA' $ do
-        r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral bw +1) (-1) (fromIntegral bh +1) 0 1
-        r^.shader.setModelview $ concat $ identityN 4
-        r^.shader.setIsTextured $ False
-        r^.shader.setColorIsReplaced $ False
-
-        fillPath_ $ do
-            setColor $ Color4 1 0 0 1
-            uncurryRectangle rectangleAt bounds
-        strokePath_ $ do
-            setColor $ Color4 1 1 1 1
-            uncurryRectangle rectangleAt bounds
-
-    r^.shader.setIsTextured $ True
-    r^.shader.setColorIsReplaced $ True
-    r^.shader.setTextColor $ Color4 1 1 1 1
-
-    ttex <- unsizeRectangle renderToTexture bounds RGBA' $ do
-        drawTextAt r (Position 0 0) txt
 
 --    scene <- newScene (Size 800 600) fontDir gui
 --    sceneVar <- newMVar scene
@@ -113,16 +94,10 @@ main = do
 
         makeContextCurrent $ Just window
         viewport $= (Position 0 0, Size winW winH)
-        clearColor $= Color4 0.13 0.13 0.13 1
+        clearColor $= Color.black 
         clear [ColorBuffer, DepthBuffer]
 
         r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
-
-        --drawTexture (r^.shader) stex $ Rectangle 0 0 800 600
-        drawTexture (r^.shader) ttex $ Rectangle 0 0 800 600
-        --drawTexture (r^.shader) stex $ Rectangle 10 10 532 266
-        --drawTexture (r^.shader) ttex $ Rectangle 10 10 100 100
-        drawPixels (r^.shader) ttex (Rectangle 0 0.5 0.5 0.5) (Rectangle 10 10 100 100)
 
         -- Render the display list.
 --        modifyMVar_ sceneVar $ renderScene (Size winW winH)

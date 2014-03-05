@@ -15,13 +15,13 @@ import Data.Vector.Storable         (unsafeWith, Storable)
 import Data.Maybe                   (isNothing)
 
 
-initTexture :: FilePath -- ^ The texture to load.
+loadTexture :: FilePath -- ^ The texture to load.
             -> Int      -- ^ The index of the texture unit to hold the texture in.
             -> IO (Maybe TextureObject)
-initTexture file u = do
+loadTexture file u = do
     texture Texture2D $= Enabled
     -- Load our texture or die.
-    mTex <- loadTexture file u
+    mTex <- readTexture file u
     unless (isNothing mTex) $ do
         -- Set the texture params on our bound texture.
         textureFilter   Texture2D   $= ((Nearest, Nothing), Nearest)
@@ -31,8 +31,8 @@ initTexture file u = do
     return mTex
 
 
-loadTexture :: FilePath -> Int -> IO (Maybe TextureObject)
-loadTexture f u = do
+readTexture :: FilePath -> Int -> IO (Maybe TextureObject)
+readTexture f u = do
     putStrLn $ "Loading texture "++f
     eDynImg <- readImage f
     case eDynImg of
