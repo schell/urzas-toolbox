@@ -112,6 +112,10 @@ renderToTexture (Size w h) fmt ioF = do
         print status
         exitFailure
 
+    clearColor $= Color4 0 0 0 0
+    clear [ColorBuffer]
+    viewport $= (Position 0 0, Size w h)
+
     ioF
     bindFramebuffer Framebuffer $= defaultFramebufferObject
     deleteObjectName fb

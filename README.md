@@ -5,5 +5,3 @@ Urza's Toolbox
 > "You can build a perfect machine out of imperfect parts." 
 > –Urza
 
-Urza's Toolbox is a bunch of dev tools for artificing Haskell games.
-

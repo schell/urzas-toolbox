@@ -5,6 +5,7 @@ module Urza.Text (
     drawTextAt,
     drawTextAt',
     sizeOfRenderedText,
+    boundsOfRenderedText,
     loadCharMap
 ) where
 
@@ -44,13 +45,20 @@ sizeOfRenderedText r str =
     in Size (floor bbw) (floor bbh)
 
 
+boundsOfRenderedText :: Renderer -> String -> PenPosition -> BoundingBox
+boundsOfRenderedText r str (Position x y) =
+    let Size w h = sizeOfRenderedText r str
+        [x',y',w',h'] = map fromIntegral [x,y,w,h]
+    in Rectangle x' y' w' h'
+
+
 drawTextAt :: Renderer -> PenPosition -> String -> IO ()
 drawTextAt r (Position x y) = foldM_ foldCharacter (Position x y)
     where foldCharacter (Position _ y') '\n' = return (Position x (y' + r^.atlas.atlasPxSize))
           foldCharacter p c          = drawChar r p c
 
 
-drawTextAt' :: Renderer -> PenPosition -> String -> IO (Rectangle Double)
+drawTextAt' :: Renderer -> PenPosition -> String -> IO BoundingBox
 drawTextAt' r pen s = do
     let (BufferAcc _ (vs,uvs) _ (l,rt) (t,bm)) = geometryForString emptyAcc s
         emptyAcc     = BufferAcc (r^.atlas) mempty pen (fromIntegral x, -1/0) (fromIntegral y, -1/0)

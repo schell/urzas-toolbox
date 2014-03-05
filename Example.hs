@@ -6,13 +6,10 @@ import           Urza
 --import           Graphics.Urza.Sketch
 import           Control.Concurrent.MVar
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get)
-import           Control.Lens
+import           Control.Lens hiding ((#))
 import           Control.Monad
 import           System.Exit
 import           System.Directory
-import           Diagrams.Prelude as D hiding (blend, stroke)
-import           Diagrams.Backend.OpenGL
-import           Diagrams.Backend.OpenGL.CmdLine
 
 
 --data App = App { _appCursor :: Position }
@@ -69,16 +66,57 @@ import           Diagrams.Backend.OpenGL.CmdLine
 --                                  textWidth .= 16
 --                                  textString .= "Serious business."
 --                              return [])
+drawTexture :: (Integral a, Num a, Show a) => Renderer -> TextureObject -> a -> a -> a -> a -> IO ()
+drawTexture rnd tex x y w h = do
+    let [x',y',w',h'] = map fromIntegral [x,y,w,h] :: [GLfloat] 
+        mv = foldl multiply (identityN 4 :: Matrix GLfloat) [scaleMatrix3d w' h' 1, translationMatrix3d x' y' 0]
+        unit = quad 0 0 1 1 
+        unit'= texQuad 0 0 1 1
+    currentProgram $= Just (rnd^.shader.program)
+    rnd^.shader.setModelview $ concat mv
+    rnd^.shader.setIsTextured $ True
+    rnd^.shader.setColorIsReplaced $ False
+    rnd^.shader.setSampler $ Index1 0
+    (i,j) <- bindAndBufferVertsUVs unit unit' 
+    activeTexture $= TextureUnit 0
+    textureBinding Texture2D $= Just tex
+    drawArrays Triangles 0 6
+    deleteObjectNames [i,j]
 
 
 main :: IO ()
 main = do
     let txt = "Hey there!\nHello."
     wvar <- initUrza (100,100) (800,600) "Purely Functional User Interface"
+
     fontDir <- fmap (++ "/assets/font/") getCurrentDirectory
     r <- makeRenderer (fontDir ++ "/" ++ "Deutsch.ttf") 128 >>=
         flip loadCharMap txt
-    let s = sizeOfRenderedText r txt
+    let bounds = boundsOfRenderedText r txt (Position 0 0)
+
+        
+    currentProgram $= Just (r^.shader.program)
+    r^.shader.setProjection $ concat $ orthoMatrix 0 800 (-1) 600 0 1
+    r^.shader.setModelview $ concat $ identityN 4
+
+    r^.shader.setIsTextured $ False
+    r^.shader.setColorIsReplaced $ False
+
+    stex <- unsizeRectangle renderToTexture bounds RGBA' $ do
+        fillPath_ $ do
+            setColor $ Color4 1 0 0 1
+            uncurryRectangle rectangleAt bounds
+        strokePath_ $ do
+            setColor $ Color4 1 1 1 1
+            uncurryRectangle rectangleAt bounds
+
+    r^.shader.setIsTextured $ True
+    r^.shader.setColorIsReplaced $ True
+    r^.shader.setTextColor $ Color4 1 1 1 1
+
+    ttex <- unsizeRectangle renderToTexture bounds RGBA' $ do 
+        drawTextAt r (Position 0 0) txt
+
 --    scene <- newScene (Size 800 600) fontDir gui
 --    sceneVar <- newMVar scene
 
@@ -89,24 +127,20 @@ main = do
 
         makeContextCurrent $ Just window
         viewport $= (Position 0 0, Size winW winH)
-        blend $= Enabled
-        blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
         clearColor $= Color4 0.13 0.13 0.13 1
         clear [ColorBuffer, DepthBuffer]
 
-        currentProgram $= Just (r^.shader.program)
         r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
-        r^.shader.setModelview $ concat $ identityN 4
-        r^.shader.setIsTextured $ True
-        r^.shader.setColorIsReplaced $ True
-        r^.shader.setTextColor $ Color4 0 1 0 1
-        drawTextAt r (Position 0 0) txt
-
+        
+        drawTexture r stex 0 0 800 600  
+        drawTexture r ttex 0 0 800 600  
+        
         -- Render the display list.
 --        modifyMVar_ sceneVar $ renderScene (Size winW winH)
         swapBuffers window
         shouldClose <- windowShouldClose window
         putMVar wvar ([],window)
         when shouldClose exitSuccess
+        --threadDelay 10
 
 

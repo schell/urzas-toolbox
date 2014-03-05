@@ -11,6 +11,7 @@ module Urza.Window (
 
 import Graphics.UI.GLFW as GLFW
 import Control.Concurrent
+import System.IO
 
 data InputEvent = CharEvent Char
                 | WindowSizeEvent Int Int
@@ -90,12 +91,16 @@ makeNewWindow pos size title = do
     setScrollCallback win $ Just $ \_ x y ->
         input mvar $ ScrollEvent x y
 
+
     return mvar
 
 
 initUrza :: (Int, Int) -> (Int, Int) -> String -> IO WindowVar
 initUrza pos size title = do
+    setErrorCallback $ Just $ \_ -> hPutStrLn stderr
     True <- GLFW.init
     defaultWindowHints
+    windowHint $ GLFW.WindowHint'OpenGLDebugContext True
+    windowHint $ GLFW.WindowHint'DepthBits 16
     makeNewWindow pos size title
 

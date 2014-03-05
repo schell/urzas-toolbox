@@ -3,7 +3,21 @@ module Urza.Math where
 import           Data.List  ( intercalate )
 import           Data.Maybe ( fromJust, fromMaybe )
 import           Prelude hiding ( subtract )
+import           Urza.Types
+import           Graphics.Rendering.OpenGL hiding (Matrix, normalize)
 import qualified Data.List as L
+
+
+uncurryRectangle :: (a -> a -> a -> a -> b) -> Rectangle a -> b
+uncurryRectangle f (Rectangle x y w h) = f x y w h
+
+
+unsizeRectangle :: RealFrac a => (Size -> b) -> Rectangle a -> b
+unsizeRectangle f (Rectangle _ _ w h) = f $ Size (floor w) (floor h)
+
+
+unposRectangle :: RealFrac a => (Size -> b) -> Rectangle a -> b
+unposRectangle f (Rectangle _ _ w h) = f $ Size (floor w) (floor h)
 
 
 -- | Returns vertices for a two-tri quad.
@@ -25,13 +39,6 @@ texQuad x y w h =
     ]
 
 
--- Vector Types
-
-type Vector a = [a]
-
-type Vec2 a = (a, a)
-type Vec3 a = (a, a, a)
-type Vec4 a = (a, a, a, a)
 
 -- Vector functions
 
@@ -56,8 +63,6 @@ add = zipWith (+)
 
 subtract :: Num a => [a] -> [a] -> [a]
 subtract = zipWith (-)
-
-type Matrix a = [Vector a]
 
 
 multiplyVec3 :: (Show a, Num a) => Vec3 a -> Matrix a -> Vec3 a

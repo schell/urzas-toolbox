@@ -32,17 +32,7 @@ makeLenses ''NodeRenderer
 type BoundingBox = Rectangle Double
 
 
-instance (Num a, Ord a) => Monoid (Rectangle a) where
-    mempty = Rectangle 0 0 0 0
-    (Rectangle x1 y1 w1 h1) `mappend` (Rectangle x2 y2 w2 h2) = Rectangle x y w h
-        where x  = (min x1 x2)
-              y  = (min y1 y2)
-              l1 = x1 + w1
-              l2 = x2 + w2
-              b1 = y1 + h1
-              b2 = y2 + h2
-              w  = (max l1 l2) - x
-              h  = (max b1 b2) - y
+
 
 
 -- | The result of a rendering. All rendering happens to a texture first,

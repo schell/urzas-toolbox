@@ -3,14 +3,39 @@ module Urza.Types where
 
 import           Graphics.Rendering.OpenGL
 import           Control.Lens
+import           Data.Monoid
 import qualified Data.IntMap as IM
+
+
+type Vector a = [a]
+
+
+type Vec2 a = (a, a)
+type Vec3 a = (a, a, a)
+type Vec4 a = (a, a, a, a)
+
+
+type Matrix a = [Vector a]
+
 
 -- | A rectangle of x y width and height.
 data Rectangle a = Rectangle a a a a deriving (Show, Ord, Eq)
 
 
-uncurryRectangle :: (a -> a -> a -> a -> b) -> Rectangle a -> b
-uncurryRectangle f (Rectangle x y w h) = f x y w h
+instance (Num a, Ord a) => Monoid (Rectangle a) where
+    mempty = Rectangle 0 0 0 0
+    (Rectangle x1 y1 w1 h1) `mappend` (Rectangle x2 y2 w2 h2) = Rectangle x y w h
+        where x  = (min x1 x2)
+              y  = (min y1 y2)
+              l1 = x1 + w1
+              l2 = x2 + w2
+              b1 = y1 + h1
+              b2 = y2 + h2
+              w  = (max l1 l2) - x
+              h  = (max b1 b2) - y
+
+
+type BoundingBox = Rectangle Double
 
 
 data Point2d = Point2d Double Double deriving (Show, Eq, Ord)
