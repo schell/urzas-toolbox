@@ -45,10 +45,10 @@ loadCharacter :: Renderer -> Char -> IO Renderer
 loadCharacter r ' ' = return r
 
 loadCharacter r char = do
-    let fp       = r^.atlas.atlasFontFilePath
-        px       = r^.atlas.atlasPxSize
+    let fp         = r^.atlas.atlasFontFilePath
+        px         = r^.atlas.atlasPxSize
         Size aW aH = r^.atlas.atlasTextureSize
-        aTex     = r^.atlas.atlasTextureObject
+        aTex       = r^.atlas.atlasTextureObject
 
     -- Render the glyph into a seperate texture.
     (charTex, (FontChar (Size gW gH) _ gMtrx)) <- texturizeGlyphOfEnum fp px char

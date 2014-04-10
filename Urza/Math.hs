@@ -3,6 +3,7 @@ module Urza.Math where
 import           Data.List  ( intercalate )
 import           Data.Maybe ( fromJust, fromMaybe )
 import           Prelude hiding ( subtract )
+import           Data.Monoid
 import           Urza.Types
 import           Graphics.Rendering.OpenGL hiding (Matrix, normalize)
 import qualified Data.List as L
@@ -78,11 +79,23 @@ multiplyVec2 (x,y) m =
 -- Projection Matrices
 
 orthoMatrix :: (Num t, Fractional t) => t -> t -> t -> t -> t -> t -> Matrix t
-orthoMatrix left right top bottom near far = [ [ 2/(right-left), 0, 0, -(right+left)/(right-left) ]
-                                             , [ 0, 2/(top-bottom), 0, -(top+bottom)/(top-bottom) ]
-                                             , [ 0, 0, -2/(far-near), -(far+near)/(far-near) ]
-                                             , [ 0, 0, 0, 1]
-                                             ]
+orthoMatrix left right top bottom near far =
+    [ [ 2/(right-left), 0, 0, -(right+left)/(right-left) ]
+    , [ 0, 2/(top-bottom), 0, -(top+bottom)/(top-bottom) ]
+    , [ 0, 0, -2/(far-near), -(far+near)/(far-near) ]
+    , [ 0, 0, 0, 1]
+    ]
+
+
+perspectiveMatrix :: (Floating t, Fractional t) => t -> t -> t -> t -> Matrix t
+perspectiveMatrix fovy aspr near far =
+    [ [ xs,  0, 0, 0 ]
+    , [  0, ys, 0, 0 ]
+    , [  0,  0, -(far+near)/(far-near), -(2*near*far)/(far-near) ]
+    , [  0,  0, -1, 0]
+    ]
+      where ys = tan (2/fovy)
+            xs = ys / aspr
 
 
 -- Affine Transformation Matrices

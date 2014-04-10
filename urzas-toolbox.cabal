@@ -48,7 +48,22 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Graphics.Urza.Sketch, Graphics.Urza.UI, Graphics.Urza.Window, Graphics.Urza.Sketch.LoadTexture, Graphics.Urza.Sketch.Math, Graphics.Urza.Sketch.Text, Graphics.Urza.Sketch.Types, Graphics.Urza.Sketch.Utils, Graphics.Urza.Sketch.Shader.Shape, Graphics.Urza.Sketch.Shader.Text, Graphics.Urza.Sketch.Shader.Types, Graphics.Urza.Sketch.Shader.Utils, Graphics.Urza.Sketch.Shader.Shape.Types, Graphics.Urza.Sketch.Shader.Text.Types, Graphics.Urza.Sketch.Text.Character, Graphics.Urza.Sketch.Text.Font, Graphics.Urza.Sketch.Text.Renderer, Graphics.Urza.Sketch.Text.Types, Graphics.Urza.UI.Types
+  exposed-modules:     Urza,
+                       Urza.Text,
+                       Urza.Text.Character,
+                       Urza.Text.Font,
+                       Urza.Bitmap,
+                       Urza.Color,
+                       Urza.Draw,
+                       Urza.Error,
+                       Urza.Math,
+                       Urza.Renderer,
+                       Urza.Shader,
+                       Urza.Texture,
+                       Urza.Types,
+  --                     Urza.UI,
+                       Urza.Window
+
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -57,10 +72,23 @@ library
   other-extensions:    TemplateHaskell, TypeFamilies, OverloadedStrings
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.7 && <4.8, OpenGL >=2.9 && <2.10, lens >=4.0 && <4.1, directory >=1.2 && <1.3, GLFW-b >=1.4 && <1.5, diagrams-lib >=1.1 && <1.2, diagrams-opengl >=1.0 && <1.1, mtl >=2.1 && <2.2, containers >=0.5 && <0.6, JuicyPixels >=3.1 && <3.2, vector >=0.10 && <0.11, OpenGLRaw >=1.4 && <1.5, bytestring >=0.10 && <0.11, freetype2 >=0.1 && <0.2
+  build-depends:       base >=4.7 && <4.8,
+                       OpenGL >=2.9 && <2.10,
+                       lens >=4.0 && <4.1,
+                       directory >=1.2 && <1.3,
+                       GLFW-b >=1.4 && <1.5,
+                       --diagrams-lib >=1.1 && <1.2,
+                       --diagrams-opengl >=1.0 && <1.1,
+                       mtl >=2.1 && <2.2,
+                       containers >=0.5 && <0.6,
+                       JuicyPixels >=3.1 && <3.2,
+                       vector >=0.10 && <0.11,
+                       OpenGLRaw >=1.4 && <1.5,
+                       bytestring >=0.10 && <0.11,
+                       freetype2 >=0.1 && <0.2
 
   -- Directories containing source files.
-  hs-source-dirs:      src
+  -- hs-source-dirs:      src
 
   -- Base language which the package is written in.
   default-language:    Haskell2010

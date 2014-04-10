@@ -15,13 +15,24 @@ import Data.Vector.Storable         (unsafeWith, Storable)
 import Data.Maybe                   (isNothing)
 
 
+-- | Load a temporary texture and do some post processing on it if possible.
+loadTempTextureAnd :: FilePath -> (TextureObject -> IO a) -> IO (Maybe a)
+loadTempTextureAnd file f = do
+    mTex <- loadTexture file
+    case mTex of
+        Nothing  -> return Nothing
+        Just tex -> do
+            result <- f tex
+            deleteObjectName tex
+            return $ Just result
+
+
 loadTexture :: FilePath -- ^ The texture to load.
-            -> Int      -- ^ The index of the texture unit to hold the texture in.
             -> IO (Maybe TextureObject)
-loadTexture file u = do
+loadTexture file = do
     texture Texture2D $= Enabled
     -- Load our texture or die.
-    mTex <- readTexture file u
+    mTex <- readTexture file
     unless (isNothing mTex) $ do
         -- Set the texture params on our bound texture.
         textureFilter   Texture2D   $= ((Nearest, Nothing), Nearest)
@@ -31,9 +42,8 @@ loadTexture file u = do
     return mTex
 
 
-readTexture :: FilePath -> Int -> IO (Maybe TextureObject)
-readTexture f u = do
-    putStrLn $ "Loading texture "++f
+readTexture :: FilePath -> IO (Maybe TextureObject)
+readTexture f = do
     eDynImg <- readImage f
     case eDynImg of
         Left note  -> do
@@ -42,7 +52,7 @@ readTexture f u = do
 
         Right img -> do
             -- Get our texture object.
-            tex  <- newBoundTexUnit u
+            tex  <- newBoundTexUnit 0
             -- Buffer our texture data.
             success <- bufferDataIntoBoundTexture img
             unless success $ putStrLn $ "    ("++f++")"
@@ -146,20 +156,56 @@ drawTexture shd tex (Rectangle x y w h) = do
     deleteObjectNames [i,j]
 
 
+sizeOfTexture :: TextureObject -> IO Size
+sizeOfTexture tex = do
+    texture Texture2D $= Enabled
+    activeTexture $= TextureUnit 0
+    textureBinding Texture2D $= Just tex
+    TextureSize2D w h <- get $ textureSize2D Texture2D 0
+    return $ Size w h
+
+
+flipTexture :: ShaderProgram -> TextureObject -> IO TextureObject
+flipTexture shdr tex = do
+    Size w h <- sizeOfTexture tex
+
+    renderToTexture (Size w h) RGBA' $ do
+        let [w',h'] = map fromIntegral [w,h]
+            pj = orthoMatrix 0 w' h' 0 0 1 :: Matrix GLfloat
+            mv = scaleMatrix3d w' h' 1 :: Matrix GLfloat
+            vs = texQuad 0 0 1 1
+            us = quad 0 0 1 1
+
+        clearColor $= Color4 0 0 0 0
+        clear [ColorBuffer]
+        viewport $= (Position 0 0, Size w h)
+        currentProgram $= (Just $ shdr^.program)
+        shdr^.setProjection $ concat pj
+        shdr^.setModelview $ concat mv
+        shdr^.setSampler $ Index1 0
+        shdr^.setColorIsReplaced $ False
+        shdr^.setIsTextured $ True
+        activeTexture $= TextureUnit 0
+        textureBinding Texture2D $= Just tex
+        (i,j) <- bindAndBufferVertsUVs vs us
+        drawArrays Triangles 0 6
+        bindBuffer ArrayBuffer $= Nothing
+        deleteObjectNames [i,j]
+
 -- | Draws a source rectangle portion of a texture into a destination rectangle
 -- in the currently bound framebuffer.
-drawPixels :: (RealFrac a, Integral b) 
-           => ShaderProgram -- ^ The shader to use for rendering. 
+drawPixels :: (RealFrac a, Integral b)
+           => ShaderProgram -- ^ The shader to use for rendering.
            -> TextureObject -- ^ The texture to render.
-           -> Rectangle a   -- ^ The source rectangle. Keep in mind opengl's 
+           -> Rectangle a   -- ^ The source rectangle. Keep in mind opengl's
                             -- texture coordinate space is flipped, with
                             -- (0,0) set in the lower left, y increasing upward.
            -> Rectangle b   -- ^ The destination rectangle to draw into. (0,0)
-                            -- is the upper left, y increasing downward. 
+                            -- is the upper left, y increasing downward.
            -> IO ()
 drawPixels shd tex from' (Rectangle x2 y2 w2 h2) = do
     let [x2',y2',w2',h2'] = map fromIntegral [x2,y2,w2,h2] :: [GLfloat]
-        mv = translationMatrix3d x2' y2' 0 `multiply` scaleMatrix3d w2' h2' 1 
+        mv = translationMatrix3d x2' y2' 0 `multiply` scaleMatrix3d w2' h2' 1
         unit = quad 0 0 1 1
         unit'= map realToFrac $ uncurryRectangle texQuad from'
     currentProgram $= Just (shd^.program)

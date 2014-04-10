@@ -167,7 +167,7 @@ renderText t r = do
 
 
 bbLocalToGlobal :: BoundingBox -> Matrix Double -> BoundingBox
-bbLocalToGlobal localbb mv = 
+bbLocalToGlobal localbb mv =
     vec2sToRectangle $ map (`multiplyVec2` mv) $ rectangleToVec2s localbb
 
 

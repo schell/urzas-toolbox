@@ -6,11 +6,12 @@ import qualified Urza.Color as Color
 --import           Graphics.Urza.UI
 --import           Graphics.Urza.Sketch
 import           Control.Concurrent.MVar
-import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels)
+import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels, Bitmap)
 import           Control.Lens hiding ((#))
 import           Control.Monad
 import           System.Exit
 import           System.Directory
+import           System.FilePath ((</>))
 
 
 --data App = App { _appCursor :: Position }
@@ -75,14 +76,11 @@ main = do
     let txt = "Hey there!\nHello."
     wvar <- initUrza (100,100) (800,600) "Purely Functional User Interface"
 
-    fontDir <- fmap (++ "/assets/font/") getCurrentDirectory
-    imgDir  <- fmap (++ "/assets/img/") getCurrentDirectory
+    fontDir <- fmap (</> "assets" </> "font") getCurrentDirectory
+    imgDir  <- fmap (</> "assets" </> "img") getCurrentDirectory
 
-    r <- makeRenderer (fontDir ++ "/" ++ "Deutsch.ttf") 128 >>=
-        flip loadCharMap txt
-    let bounds = boundsOfRenderedText r txt (Position 0 0)
-        Size bw bh = unsizeRectangle id bounds
-    print bounds
+    r <- loadText txt =<< makeRenderer (fontDir </> "Deutsch.ttf") 128
+    Just (bmp@(Bitmap t size)) <- loadBitmap (imgDir </> "oryx_roguelike_16x24.png")
 
 --    scene <- newScene (Size 800 600) fontDir gui
 --    sceneVar <- newMVar scene
@@ -94,10 +92,11 @@ main = do
 
         makeContextCurrent $ Just window
         viewport $= (Position 0 0, Size winW winH)
-        clearColor $= Color.black 
+        clearColor $= Color.black
         clear [ColorBuffer, DepthBuffer]
 
         r^.shader.setProjection $ concat $ orthoMatrix 0 (fromIntegral winW) 0 (fromIntegral winH) 0 1
+        drawTexture (_shader r) t $ Rectangle 0 0 100 100
 
         -- Render the display list.
 --        modifyMVar_ sceneVar $ renderScene (Size winW winH)

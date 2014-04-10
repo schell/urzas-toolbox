@@ -84,6 +84,7 @@ data ShaderProgram = ShaderProgram { _program            :: Program
                                    , _setTextColor       :: SetUniformColor4f
                                    , _setIsTextured      :: SetUniformBool
                                    , _setColorIsReplaced :: SetUniformBool
+                                   , _setIs3d            :: SetUniformBool
                                    }
 makeLenses ''ShaderProgram
 
@@ -139,3 +140,7 @@ data Renderer = Renderer { _shader :: ShaderProgram
 makeLenses ''Renderer
 
 
+data Bitmap = Bitmap { _bitmapTexture :: TextureObject
+                     , _bitmapSize    :: Size
+                     }
+makeLenses ''Bitmap
