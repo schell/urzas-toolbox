@@ -13,6 +13,7 @@ import Foreign.Ptr
 import System.Exit (exitFailure)
 import Data.Vector.Storable         (unsafeWith, Storable)
 import Data.Maybe                   (isNothing)
+import Linear
 
 
 -- | Load a temporary texture and do some post processing on it if possible.
@@ -141,11 +142,12 @@ renderToTexture (Size w h) fmt ioF = do
 drawTexture :: Integral a => ShaderProgram -> TextureObject -> Rectangle a -> IO ()
 drawTexture shd tex (Rectangle x y w h) = do
     let [x',y',w',h'] = map fromIntegral [x,y,w,h] :: [GLfloat]
-        mv = translationMatrix3d x' y' 0 `multiply` scaleMatrix3d w' h' 1
+        mv = transM44 x' y' 0 !*! scaleM44 w' h' 1 
+        --mv = translationMatrix3d x' y' 0 `multiply` scaleMatrix3d w' h' 1
         unit = quad 0 0 1 1
         unit'= texQuad 0 0 1 1
     currentProgram $= Just (shd^.program)
-    shd^.setModelview $ concat mv
+    shd^.setModelview $ mv
     shd^.setIsTextured $ True
     shd^.setColorIsReplaced $ False
     shd^.setSampler $ Index1 0
@@ -171,8 +173,8 @@ flipTexture shdr tex = do
 
     renderToTexture (Size w h) RGBA' $ do
         let [w',h'] = map fromIntegral [w,h]
-            pj = orthoMatrix 0 w' h' 0 0 1 :: Matrix GLfloat
-            mv = scaleMatrix3d w' h' 1 :: Matrix GLfloat
+            pj = orthoM44 0 w' h' 0 0 1
+            mv = scaleM44 w' h' 1
             vs = texQuad 0 0 1 1
             us = quad 0 0 1 1
 
@@ -180,8 +182,8 @@ flipTexture shdr tex = do
         clear [ColorBuffer]
         viewport $= (Position 0 0, Size w h)
         currentProgram $= (Just $ shdr^.program)
-        shdr^.setProjection $ concat pj
-        shdr^.setModelview $ concat mv
+        shdr^.setProjection $ pj
+        shdr^.setModelview $ mv
         shdr^.setSampler $ Index1 0
         shdr^.setColorIsReplaced $ False
         shdr^.setIsTextured $ True
@@ -205,11 +207,11 @@ drawPixels :: (RealFrac a, Integral b)
            -> IO ()
 drawPixels shd tex from' (Rectangle x2 y2 w2 h2) = do
     let [x2',y2',w2',h2'] = map fromIntegral [x2,y2,w2,h2] :: [GLfloat]
-        mv = translationMatrix3d x2' y2' 0 `multiply` scaleMatrix3d w2' h2' 1
+        mv = transM44 x2' y2' 0 !*! scaleM44 w2' h2' 1
         unit = quad 0 0 1 1
         unit'= map realToFrac $ uncurryRectangle texQuad from'
     currentProgram $= Just (shd^.program)
-    shd^.setModelview $ concat mv
+    shd^.setModelview $ mv
     shd^.setIsTextured $ True
     shd^.setColorIsReplaced $ False
     shd^.setSampler $ Index1 0

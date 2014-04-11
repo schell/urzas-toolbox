@@ -7,9 +7,14 @@ import           Data.Monoid
 import           Linear
 import           Urza.Types
 import           Graphics.Rendering.OpenGL hiding (Matrix, normalize)
+import qualified Data.Foldable as F
 import qualified Data.List as L
 
 -- Linear Helpers
+
+toList :: M44 a -> [a]
+toList = F.foldl (\vs (V4 a b c d) -> vs ++ [a,b,c,d]) []
+
 
 orthoM44 :: (Num a, Fractional a) => a -> a -> a -> a -> a -> a -> M44 a
 orthoM44 left right top bottom near far =
@@ -76,6 +81,25 @@ transM44 x y z = V4 (V4 1 0 0 x)
                     (V4 0 0 1 z)
                     (V4 0 0 0 1)
 
+---- Relative Vectors
+
+vRight :: M44 a -> V3 a
+vRight (V4 (V4 x y z _) _ _ _) = V3 x y z
+
+
+vUp :: M44 a -> V3 a
+vUp (V4 _ (V4 x y z _) _ _) = V3 x y z
+
+
+vOut :: M44 a -> V3 a
+vOut (V4 _ _ (V4 x y z _) _) = V3 x y z
+
+
+vPos :: M44 a -> V3 a
+vPos (V4 (V4 _ _ _ x)
+         (V4 _ _ _ y)
+         (V4 _ _ _ z)
+         _) = V3 x y z
 
 
 uncurryRectangle :: (a -> a -> a -> a -> b) -> Rectangle a -> b
@@ -107,234 +131,4 @@ texQuad x y w h =
     , x + w, y
     , x, y
     ]
-
-
-
--- Vector functions
-
--- | Computes the magnitude.
-magnitude :: Floating a => Vector a -> a
-magnitude = sqrt . sum . map (**2)
-
--- | Computes the unit vector.
---normalize :: Floating a => [a] -> [a]
---normalize vec = map (/mag) vec
---    where mag = magnitude vec
-
--- | Computes the unit vector.
---unitize :: Floating a => [a] -> [a]
---unitize = normalize
-
--- | Adds two vectors.
-add :: Floating a => [a] -> [a] -> [a]
-add = zipWith (+)
-
--- | Subtracts two vectors.
-
-subtract :: Num a => [a] -> [a] -> [a]
-subtract = zipWith (-)
-
-
-multiplyVec3 :: (Show a, Num a) => Vec3 a -> Matrix a -> Vec3 a
-multiplyVec3 (x,y,z) m =
-    let [[x',y',z',_]] = m `multiply` [[x],[y],[z],[1]]
-    in (x',y',z')
-
-
-multiplyVec2 :: (Show a, Num a) => Vec2 a -> Matrix a -> Vec2 a
-multiplyVec2 (x,y) m =
-    let (x',y',_) = (x,y,0) `multiplyVec3` m
-    in (x',y')
-
-
--- Relative Vectors
-
-rightVector :: Num a => Matrix a -> Vector a
-rightVector [[x,y,z,_], _, _, _] = [x,y,z]
-rightVector _ = [1,1,1]
-
-
-upVector :: Num a => Matrix a -> Vector a
-upVector [_, [x,y,z,_], _, _] = [x,y,z]
-upVector _ = [1,1,1]
-
-
-outVector :: Num a => Matrix a -> Vector a
-outVector [_, _, [x,y,z,_], _] = [x,y,z]
-outVector _ = [1,1,1]
-
-
-positionVector :: Num a => Matrix a -> Vector a
-positionVector [[_,_,_,x]
-               ,[_,_,_,y]
-               ,[_,_,_,z]
-               ,_
-               ] = [x,y,z]
-positionVector _ = [0,0,0]
-
-
--- Projection Matrices
-
-frustumMatrix :: (Floating t, Fractional t) => t -> t -> t -> t -> t -> t -> Matrix t
-frustumMatrix left right top bottom znear zfar =
-    let x = (2*znear)       / (right-left)
-        y = (2*znear)       / (top-bottom)
-        a = (right+left)    / (right-left)
-        b = (top+bottom)    / (top-bottom)
-        c = -(zfar+znear)   / (zfar-znear)
-        d = -(2*zfar*znear) / (zfar-znear)
-    in [[x, 0,  a, 0]
-       ,[0, y,  b, 0]
-       ,[0, 0,  c, d]
-       ,[0, 0, -1, 0]
-       ]
-
-
-
-
-
-orthoMatrix :: (Num t, Fractional t) => t -> t -> t -> t -> t -> t -> Matrix t
-orthoMatrix left right top bottom near far =
-    [ [ 2/(right-left), 0, 0, -(right+left)/(right-left) ]
-    , [ 0, 2/(top-bottom), 0, -(top+bottom)/(top-bottom) ]
-    , [ 0, 0, -2/(far-near), -(far+near)/(far-near) ]
-    , [ 0, 0, 0, 1]
-    ]
-
-
-perspectiveMatrix :: (Floating t, Fractional t) => t -> t -> t -> t -> Matrix t
-perspectiveMatrix fovy aspect near far =
-    let top     = near * tan (fovy * (pi / 360.0))
-        bottom  = top * (-1)
-        left    = bottom * aspect
-        right   = top * aspect
-    in frustumMatrix left right top bottom near far
-
-
--- Affine Transformation Matrices
-
-scaleMatrix3d :: Num t => t -> t -> t -> Matrix t
-scaleMatrix3d x y z = [ [x, 0, 0, 0]
-                      , [0, y, 0, 0]
-                      , [0, 0, z, 0]
-                      , [0, 0, 0, 1]
-                      ]
-
-rotationMatrix3d :: Floating t => t -> t -> t -> Matrix t
-rotationMatrix3d x y z = [ [cy*cz, -cx*sz+sx*sy*sz,  sx*sz+cx*sy*cz, 0]
-                         , [cy*sz,  cx*cz+sx*sy*sz, -sx*cz+cx*sy*sz, 0]
-                         , [  -sy,           sx*cy,           cx*cy, 0]
-                         , [    0,               0,               0, 1]
-                         ]
-    where [cx, cy, cz] = map cos [x, y, z]
-          [sx, sy, sz] = map sin [x, y, z]
-
-translationMatrix3d :: Num t => t -> t -> t -> Matrix t
-translationMatrix3d x y z = [ [1, 0, 0, x]
-                            , [0, 1, 0, y]
-                            , [0, 0, 1, z]
-                            , [0, 0, 0, 1]
-                            ]
-
--- Basic Matrix Math
-
-fromVector :: Int -> Int -> [a] -> Maybe [[a]]
-fromVector r c v = if length v `mod` r*c == 0
-                   then Just $ groupByRowsOf c v
-                   else Nothing
-
--- | The identity of an NxN matrix.
-identityN :: (Num a) => Int -> Matrix a
-identityN n = groupByRowsOf n $ modList n
-    where modList l = [ if x `mod` (l+1) == 0 then 1 else 0 | x <- [0..(l*l)-1] ]
-
--- | The identity of the given matrix.
-identity :: (Num a) => Matrix a -> Matrix a
-identity m = groupByRowsOf rows modList
-    where modList = [ if x `mod` (cols+1) == 0 then 1 else 0 | x <- [0..len-1] ]
-          len     = sum $ map length m
-          rows    = numRows m
-          cols    = numColumns m
--- | The number of columns in the matrix.
-numColumns :: Matrix a -> Int
-numColumns = length
--- | The number of rows in the matrix.
-numRows :: Matrix a -> Int
-numRows []    = 0
-numRows (r:_) = length r
--- | A list of the columns.
-toColumns :: Matrix a -> [[a]]
-toColumns = transpose
--- | A list of the rows.
-toRows :: Matrix a -> [[a]]
-toRows = id
--- | The minor for an element of `a` at the given row and column.
-minorAt :: Floating a => [Vector a] -> Int -> Int -> a
-minorAt m x y = let del = deleteColRow m x y
-                in determinant del
--- | The Matrix created by deleting column x and row y of the given matrix.
-deleteColRow :: Matrix a -> Int -> Int -> Matrix a
-deleteColRow m x y = let nRws = numRows m
-                         nCls = numColumns m
-                         rNdxs = [ row + x      | row <- [0,nCls..nCls*(nCls-1)] ]
-                         cNdxs = [ nRws*y + col | col <- [0..nRws-1] ]
-                         ndxs = rNdxs ++ cNdxs
-                         (_, vec) = foldl filtNdx (0,[]) $ concat m
-                         filtNdx (i, acc) el = if i `elem` ndxs
-                                               then (i+1, acc)
-                                               else (i+1, acc++[el])
-                     in groupByRowsOf (nRws-1) vec
--- | The transpose of the matrix.
-transpose :: Matrix a -> Matrix a
-transpose = L.transpose
-
--- | Computes the inverse of the matrix.
-inverse :: (Num a, Eq a, Fractional a, Floating a) => Matrix a -> Maybe (Matrix a)
-inverse m = let det      = determinant m
-                one_det  = 1/ det
-                cofacts  = cofactors m
-                adjoint  = transpose cofacts
-                inv      = (map . map) (*one_det) adjoint
-            in if det /= 0
-               then Just inv
-               else Nothing
-
--- | The matrix of cofactors of the given matrix.
-cofactors :: (Num a, Floating a) => Matrix a -> Matrix a
-cofactors m = fromJust $ fromVector (numRows m) (numColumns m) [ cofactorAt m x y | y <- [0..numRows m -1], x <- [0..numColumns m -1] ]
-
--- | Computes the multiplication of two matrices.
-multiply :: (Num a, Show a) => Matrix a -> Matrix a -> Matrix a
-multiply m1 m2 = let element row col = sum $ zipWith (*) row col
-                     rows  = toRows m1
-                     cols  = toColumns m2
-                     nRows = numRows m1
-                     nCols = numColumns m2
-                     vec   = take (nRows*nCols) [ element r c | r <- rows, c <- cols ]
-                     mM    = fromVector nRows nCols vec
-                     err   = error $ intercalate "\n" [ "Could not multiply matrices:"
-                                                      , "m1:"
-                                                      , show m1
-                                                      , "m2:"
-                                                      , show m2
-                                                      , "from vector:"
-                                                      , show vec
-                                                      ]
-                 in fromMaybe err mM
--- | The cofactor for an element of `a` at the given row and column.
-cofactorAt :: (Num a, Floating a) => Matrix a  -> Int -> Int -> a
-cofactorAt m x y = let pow = fromIntegral $ x + y + 2 -- I think zero indexed.
-                   in (-1)**pow * minorAt m x y
-
--- | Computes the determinant of the matrix.
-determinant :: (Num a, Floating a) => Matrix a -> a
-determinant [[a]] = a
-determinant m  = let rowCofactors = [ cofactorAt m x 0 | x <- [0..numColumns m -1] ]
-                     row = head $ toRows m
-                 in sum $ zipWith (*) rowCofactors row
-
--- Helpers
-groupByRowsOf :: Int -> [a] -> [[a]]
-groupByRowsOf _    [] = []
-groupByRowsOf cols xs = take cols xs : groupByRowsOf cols (drop cols xs)
 

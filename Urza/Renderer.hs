@@ -24,12 +24,11 @@ drawTextAt r (Position x y) s = do
     r^.shader.setIs3d $ False
     foldM_ foldCharacter (Position x y) s
       where foldCharacter (Position _ y') '\n' = return (Position x (y' + r^.atlas.atlasPxSize))
-            foldCharacter p c          = drawChar r p c
+            foldCharacter p c                  = drawChar r p c
 
 
 drawTextAt' :: Renderer -> PenPosition -> String -> IO BoundingBox
 drawTextAt' r pen s = do
-    r^.shader.setIs3d $ False
     let (BufferAcc _ (vs,uvs) _ (l,rt) (t,bm)) = geometryForString emptyAcc s
         emptyAcc     = BufferAcc (r^.atlas) mempty pen (fromIntegral x, -1/0) (fromIntegral y, -1/0)
         Position x y = pen
@@ -38,6 +37,7 @@ drawTextAt' r pen s = do
     texture Texture2D $= Enabled
     activeTexture $= TextureUnit 0
     textureBinding Texture2D $= Just (r^.atlas.atlasTextureObject)
+    r^.shader.setIs3d $ False
     r^.shader.setIsTextured $ True
     r^.shader.setColorIsReplaced $ True
     r^.shader.setSampler $ Index1 0

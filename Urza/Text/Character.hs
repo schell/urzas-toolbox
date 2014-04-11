@@ -14,6 +14,7 @@ import           Urza.Math
 import           Urza.Texture
 import           Urza.Text.Font
 import           Urza.Shader
+import           Linear
 import           Graphics.Rendering.OpenGL hiding (Matrix, Bitmap)
 import           Control.Monad.State (execState)
 import           Control.Monad
@@ -64,8 +65,8 @@ loadCharacter r char = do
 
     -- Flip the charTex to be right side up.
     charTex' <- renderToTexture (Size gW' gH') R8 $ do
-        let pj = orthoMatrix 0 gW'' gH'' 0 0 1 :: Matrix GLfloat
-            mv = identityN 4 `multiply` scaleMatrix3d gW'' gH'' 1 :: Matrix GLfloat
+        let pj = orthoM44 0 gW'' gH'' 0 0 1
+            mv = scaleM44 gW'' gH'' 1
             vs = texQuad 0 0 1 1
             us = quad 0 0 1 1
 
@@ -79,8 +80,8 @@ loadCharacter r char = do
         r^.shader.setSampler $ Index1 0
         r^.shader.setTextColor $ Color4 1 0 0 1
         r^.shader.setIsTextured $ True
-        r^.shader.setProjection $ concat pj
-        r^.shader.setModelview $ concat mv
+        r^.shader.setProjection $ pj
+        r^.shader.setModelview $ mv
         (i,j) <- bindAndBufferVertsUVs vs us
         drawArrays Triangles 0 6
         bindBuffer ArrayBuffer $= Nothing
@@ -91,7 +92,7 @@ loadCharacter r char = do
 
     tex <- renderToTexture (Size w' h') R8 $ do
         -- Now render business as usual.
-        let pj  = orthoMatrix 0 (fromIntegral w) (fromIntegral h) 0 0 1 :: Matrix GLfloat
+        let pj  = orthoM44 0 (fromIntegral w) (fromIntegral h) 0 0 1
             aW' = fromIntegral aW
             aH' = fromIntegral aH
 
@@ -99,7 +100,7 @@ loadCharacter r char = do
         clear [ColorBuffer, DepthBuffer]
         viewport $= (Position 0 0, Size w' h')
         currentProgram $= (Just $ r^.shader.program)
-        r^.shader.setProjection $ concat pj
+        r^.shader.setProjection $ pj
         -- We have to render the atlas upside down.
         renderTex r aTex (Position 0 0) (aW', aH')
         renderTex r charTex' (Position (fromIntegral aW) 0) (gW'', gH'')
@@ -148,7 +149,7 @@ drawChar r pen char =
             r^.shader.setSampler $ Index1 0
             r^.shader.setIsTextured $ True
             r^.shader.setColorIsReplaced $ True
-            r^.shader.setModelview $ concat $ identityN 4
+            r^.shader.setModelview $ eye4
 
             drawArrays Triangles 0 6
             bindBuffer ArrayBuffer $= Nothing
@@ -308,14 +309,14 @@ advancePenPosition (Position x y) (FontChar (Size w _) _ (NormGMetrics _ advp)) 
 -- given text renderer.
 renderTex :: Renderer -> TextureObject -> PenPosition -> (GLfloat, GLfloat) -> IO ()
 renderTex r t (Position x y) (w,h) = do
-    let scl  = scaleMatrix3d w h 1 :: Matrix GLfloat
+    let scl  = scaleM44 w h 1
         x'  = fromIntegral x
         y'  = fromIntegral y
-        tns = translationMatrix3d x' y' 0 :: Matrix GLfloat
-        mv  = identityN 4 `multiply` tns `multiply` scl
+        tns = transM44 x' y' 0
+        mv  = tns !*! scl
         vts = texQuad 0 0 1 1
         uvs = texQuad 0 0 1 1
-    r^.shader.setModelview $ concat mv
+    r^.shader.setModelview $ mv
     r^.shader.setSampler $ Index1 0
     r^.shader.setTextColor $ Color4 1 0 0 1
     texture Texture2D $= Enabled

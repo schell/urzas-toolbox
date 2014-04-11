@@ -17,6 +17,7 @@ module Urza.Shader  (
 
 import           Urza.Error
 import           Urza.Types
+import           Urza.Math
 import           Graphics.Rendering.OpenGL
 import           Control.Monad
 import           Foreign
@@ -107,9 +108,9 @@ makeShaderProgram = do
     rLoc <- get $ uniformLocation p "isColorReplaced"
     i3Loc <- get $ uniformLocation p "is3d"
 
-    let updateMV mat = withArray mat $ \ptr ->
+    let updateMV mat = withArray (toList mat) $ \ptr ->
                            glUniformMatrix4fv mv 1 1 ptr
-        updatePJ mat = withArray mat $ \ptr ->
+        updatePJ mat = withArray (toList mat) $ \ptr ->
                            glUniformMatrix4fv pj 1 1 ptr
         updateSampler = (uniform sLoc $=)
         updateColor   = (uniform cLoc $=)

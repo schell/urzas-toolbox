@@ -1,21 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Urza.Types where
 
+import           Linear
 import           Graphics.Rendering.OpenGL
 import           Control.Lens
 import           Data.Monoid
 import qualified Data.IntMap as IM
-
-
-type Vector a = [a]
-
-
-type Vec2 a = (a, a)
-type Vec3 a = (a, a, a)
-type Vec4 a = (a, a, a, a)
-
-
-type Matrix a = [Vector a]
 
 
 -- | A rectangle of x y width and height.
@@ -62,7 +52,7 @@ type BezierCurve = [Point2d]
 
 
 -- | A function that updates a 4x4 matrix uniform.
-type SetUniformMatrix4fv = [GLfloat] -> IO ()
+type SetUniformMatrix4fv = M44 GLfloat -> IO ()
 
 
 -- | A function that updates an int uniform.
