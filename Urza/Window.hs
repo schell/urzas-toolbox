@@ -15,7 +15,7 @@ import System.IO
 
 data InputEvent = CharEvent Char
                 | WindowSizeEvent Int Int
-                | KeyEvent Key Int KeyState ModifierKeys
+                | KeyEvent Key Int KeyState ModifierKeys -- Key, scancode, pressed/released, mods
                 | MouseButtonEvent MouseButton MouseButtonState ModifierKeys
                 | CursorMoveEvent Double Double
                 | CursorEnterEvent CursorState

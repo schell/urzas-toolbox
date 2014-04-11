@@ -4,9 +4,78 @@ import           Data.List  ( intercalate )
 import           Data.Maybe ( fromJust, fromMaybe )
 import           Prelude hiding ( subtract )
 import           Data.Monoid
+import           Linear
 import           Urza.Types
 import           Graphics.Rendering.OpenGL hiding (Matrix, normalize)
 import qualified Data.List as L
+
+-- Linear Helpers
+
+orthoM44 :: (Num a, Fractional a) => a -> a -> a -> a -> a -> a -> M44 a
+orthoM44 left right top bottom near far =
+    V4 (V4 (2/(right-left)) 0 0 (-(right+left)/(right-left)) )
+       (V4 0 (2/(top-bottom)) 0 (-(top+bottom)/(top-bottom)) )
+       (V4 0 0 (-2/(far-near)) (-(far+near)/(far-near)) )
+       (V4 0 0 0 1)
+
+
+frustumM44 :: (Floating t, Fractional t) => t -> t -> t -> t -> t -> t -> M44 t
+frustumM44 left right top bottom znear zfar =
+    let x = (2*znear)       / (right-left)
+        y = (2*znear)       / (top-bottom)
+        a = (right+left)    / (right-left)
+        b = (top+bottom)    / (top-bottom)
+        c = -(zfar+znear)   / (zfar-znear)
+        d = -(2*zfar*znear) / (zfar-znear)
+    in V4 (V4 x 0 a 0)
+          (V4 0 y b 0)
+          (V4 0 0 c d)
+          (V4 0 0 (-1) 0)
+
+
+perspectiveM44 :: (Floating t, Fractional t) => t -> t -> t -> t -> M44 t
+perspectiveM44 fovy aspect near far =
+    let top     = near * tan (fovy * (pi / 360.0))
+        bottom  = top * (-1)
+        left    = bottom * aspect
+        right   = top * aspect
+    in frustumM44 left right top bottom near far
+
+
+perspectM44 :: (Floating t, Fractional t) => t -> t -> t -> t -> M44 t
+perspectM44 fovy aspect znear zfar =
+    let xymax = znear * tan (fovy * pi / 360.0)
+        ymin = -xymax
+        xmin = -xymax
+
+        width = xymax - xmin
+        height = xymax - ymin
+
+        depth = zfar - znear
+        q = -(zfar + znear) / depth
+        qn = -2 * (zfar * znear) / depth
+
+        w = (2 * znear / width) / aspect
+        h = 2 * znear / height
+    in V4 (V4 w 0 0 0)
+          (V4 0 h 0 0)
+          (V4 0 0 q qn)
+          (V4 0 0 (-1) 0)
+
+
+scaleM44 :: Num t => t -> t -> t -> M44 t
+scaleM44 x y z = V4 (V4 x 0 0 0)
+                    (V4 0 y 0 0)
+                    (V4 0 0 z 0)
+                    (V4 0 0 0 1)
+
+
+transM44 :: Num t => t -> t -> t -> M44 t
+transM44 x y z = V4 (V4 1 0 0 x)
+                    (V4 0 1 0 y)
+                    (V4 0 0 1 z)
+                    (V4 0 0 0 1)
+
 
 
 uncurryRectangle :: (a -> a -> a -> a -> b) -> Rectangle a -> b
@@ -48,13 +117,13 @@ magnitude :: Floating a => Vector a -> a
 magnitude = sqrt . sum . map (**2)
 
 -- | Computes the unit vector.
-normalize :: Floating a => [a] -> [a]
-normalize vec = map (/mag) vec
-    where mag = magnitude vec
+--normalize :: Floating a => [a] -> [a]
+--normalize vec = map (/mag) vec
+--    where mag = magnitude vec
 
 -- | Computes the unit vector.
-unitize :: Floating a => [a] -> [a]
-unitize = normalize
+--unitize :: Floating a => [a] -> [a]
+--unitize = normalize
 
 -- | Adds two vectors.
 add :: Floating a => [a] -> [a] -> [a]
@@ -71,12 +140,58 @@ multiplyVec3 (x,y,z) m =
     let [[x',y',z',_]] = m `multiply` [[x],[y],[z],[1]]
     in (x',y',z')
 
+
 multiplyVec2 :: (Show a, Num a) => Vec2 a -> Matrix a -> Vec2 a
 multiplyVec2 (x,y) m =
     let (x',y',_) = (x,y,0) `multiplyVec3` m
     in (x',y')
 
+
+-- Relative Vectors
+
+rightVector :: Num a => Matrix a -> Vector a
+rightVector [[x,y,z,_], _, _, _] = [x,y,z]
+rightVector _ = [1,1,1]
+
+
+upVector :: Num a => Matrix a -> Vector a
+upVector [_, [x,y,z,_], _, _] = [x,y,z]
+upVector _ = [1,1,1]
+
+
+outVector :: Num a => Matrix a -> Vector a
+outVector [_, _, [x,y,z,_], _] = [x,y,z]
+outVector _ = [1,1,1]
+
+
+positionVector :: Num a => Matrix a -> Vector a
+positionVector [[_,_,_,x]
+               ,[_,_,_,y]
+               ,[_,_,_,z]
+               ,_
+               ] = [x,y,z]
+positionVector _ = [0,0,0]
+
+
 -- Projection Matrices
+
+frustumMatrix :: (Floating t, Fractional t) => t -> t -> t -> t -> t -> t -> Matrix t
+frustumMatrix left right top bottom znear zfar =
+    let x = (2*znear)       / (right-left)
+        y = (2*znear)       / (top-bottom)
+        a = (right+left)    / (right-left)
+        b = (top+bottom)    / (top-bottom)
+        c = -(zfar+znear)   / (zfar-znear)
+        d = -(2*zfar*znear) / (zfar-znear)
+    in [[x, 0,  a, 0]
+       ,[0, y,  b, 0]
+       ,[0, 0,  c, d]
+       ,[0, 0, -1, 0]
+       ]
+
+
+
+
 
 orthoMatrix :: (Num t, Fractional t) => t -> t -> t -> t -> t -> t -> Matrix t
 orthoMatrix left right top bottom near far =
@@ -88,14 +203,12 @@ orthoMatrix left right top bottom near far =
 
 
 perspectiveMatrix :: (Floating t, Fractional t) => t -> t -> t -> t -> Matrix t
-perspectiveMatrix fovy aspr near far =
-    [ [ xs,  0, 0, 0 ]
-    , [  0, ys, 0, 0 ]
-    , [  0,  0, -(far+near)/(far-near), -(2*near*far)/(far-near) ]
-    , [  0,  0, -1, 0]
-    ]
-      where ys = tan (2/fovy)
-            xs = ys / aspr
+perspectiveMatrix fovy aspect near far =
+    let top     = near * tan (fovy * (pi / 360.0))
+        bottom  = top * (-1)
+        left    = bottom * aspect
+        right   = top * aspect
+    in frustumMatrix left right top bottom near far
 
 
 -- Affine Transformation Matrices
