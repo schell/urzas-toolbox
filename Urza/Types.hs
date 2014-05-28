@@ -130,7 +130,13 @@ data Renderer = Renderer { _shader :: ShaderProgram
 makeLenses ''Renderer
 
 
+data Scale = Scale GLfloat GLfloat deriving (Show)
+
+
+data Rotation = Rotation GLfloat deriving (Show)
+
+
 data Bitmap = Bitmap { _bitmapTexture :: TextureObject
                      , _bitmapSize    :: Size
-                     }
+                     } deriving (Show)
 makeLenses ''Bitmap

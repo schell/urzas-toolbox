@@ -13,7 +13,8 @@ import Graphics.UI.GLFW as GLFW
 import Control.Concurrent
 import System.IO
 
-data InputEvent = CharEvent Char
+data InputEvent = NoInputEvent
+                | CharEvent Char
                 | WindowSizeEvent Int Int
                 | KeyEvent Key Int KeyState ModifierKeys -- Key, scancode, pressed/released, mods
                 | MouseButtonEvent MouseButton MouseButtonState ModifierKeys

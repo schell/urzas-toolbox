@@ -132,3 +132,7 @@ texQuad x y w h =
     , x, y
     ]
 
+-- Geometry
+
+tau :: Floating a => a
+tau = 2.0 * pi
