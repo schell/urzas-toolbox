@@ -12,16 +12,8 @@ module Urza.Window (
 import Graphics.UI.GLFW as GLFW
 import Control.Concurrent
 import System.IO
+import Urza.Types
 
-data InputEvent = NoInputEvent
-                | CharEvent Char
-                | WindowSizeEvent Int Int
-                | KeyEvent Key Int KeyState ModifierKeys -- Key, scancode, pressed/released, mods
-                | MouseButtonEvent MouseButton MouseButtonState ModifierKeys
-                | CursorMoveEvent Double Double
-                | CursorEnterEvent CursorState
-                | ScrollEvent Double Double
-                deriving (Show, Eq, Ord)
 
 
 getMouseUpEvent :: [InputEvent] -> Maybe InputEvent
@@ -52,7 +44,6 @@ getCharEvent char = foldl isCharEvent Nothing
           isCharEvent _ _ = Nothing
 
 
-type WindowVar = MVar ([InputEvent], Window)
 
 
 -- | Inject some input into a WindowVar.

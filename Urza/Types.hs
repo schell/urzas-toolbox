@@ -1,8 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Urza.Types where
 
+import Graphics.UI.GLFW as GLFW
+import Control.Concurrent
+import System.IO
 import           Linear
 import           Graphics.Rendering.OpenGL
+import           Graphics.UI.GLFW as GLFW
 import           Control.Lens
 import           Data.Monoid
 import qualified Data.IntMap as IM
@@ -140,3 +144,28 @@ data Bitmap = Bitmap { _bitmapTexture :: TextureObject
                      , _bitmapSize    :: Size
                      } deriving (Show)
 makeLenses ''Bitmap
+
+
+data InputEvent = NoInputEvent
+                | CharEvent Char
+                | WindowSizeEvent Int Int
+                | KeyEvent Key Int KeyState ModifierKeys -- Key, scancode, pressed/released, mods
+                | MouseButtonEvent MouseButton MouseButtonState ModifierKeys
+                | CursorMoveEvent Double Double
+                | CursorEnterEvent CursorState
+                | ScrollEvent Double Double
+                deriving (Show, Eq, Ord)
+
+
+type WindowVar = MVar ([InputEvent], Window)
+
+
+data Env = Env { _envEvent :: Maybe InputEvent
+               , _envCursorOnScreen :: Bool
+               , _envLastCursorPos :: (Double, Double)
+               } deriving (Show)
+makeLenses ''Env
+
+
+
+
