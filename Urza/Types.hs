@@ -10,7 +10,11 @@ import           Graphics.UI.GLFW as GLFW
 import           Control.Lens
 import           Data.Monoid
 import qualified Data.IntMap as IM
+import qualified Data.Set as S
 
+
+class Default a where
+    def :: a
 
 -- | A rectangle of x y width and height.
 data Rectangle a = Rectangle a a a a deriving (Show, Ord, Eq)
@@ -160,12 +164,20 @@ data InputEvent = NoInputEvent
 type WindowVar = MVar ([InputEvent], Window)
 
 
-data Env = Env { _envEvent :: Maybe InputEvent
-               , _envCursorOnScreen :: Bool
-               , _envLastCursorPos :: (Double, Double)
+data Env = Env { _envEvent            :: Maybe InputEvent
+               , _envCursorOnScreen   :: Bool
+               , _envLastCursorPos    :: (Double, Double)
+               , _envKeysDown         :: S.Set Key
+               , _envMouseButtonsDown :: S.Set MouseButton
                } deriving (Show)
 makeLenses ''Env
 
-
+instance Default Env where
+    def = Env { _envEvent = Nothing
+              , _envCursorOnScreen = False
+              , _envLastCursorPos = (0,0)
+              , _envKeysDown = mempty
+              , _envMouseButtonsDown = mempty
+              }
 
 
