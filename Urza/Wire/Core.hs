@@ -33,8 +33,10 @@ renderWithIterationVar ivar = do
 stepWithIterationVar :: MVar (Iteration2d e a) -> Maybe InputEvent -> IO (Iteration2d e a)
 stepWithIterationVar ivar mEvent = do
     iter <- (& iEnv %~ processEnv mEvent) <$> takeMVar ivar
-    (_, session) <- stepSession $ _iSession iter
-    return $ stepIteration iter session
+    (dt, session) <- stepSession $ _iSession iter
+    let iter' = stepIteration iter dt & iSession .~ session
+    putMVar ivar iter'
+    return iter'
 
 
 -- | Processes individual events into an input environment.
@@ -51,10 +53,10 @@ processEnv mE env = env & envEvent .~ mE
 
 
 -- | Steps an Iteration2d using a timer.
-stepIteration :: Iteration2d e a -> Timer -> Iteration2d e a
+stepIteration :: Iteration2d e a -> TimeDelta -> Iteration2d e a
 stepIteration i t =
     let idata = _iData i
         wire  = _iWire i
         env   = _iEnv i
         (idata', wire') = runReader (stepWire wire t idata) env
-    in i & iData .~ idata' & iWire .~ wire' & iSession .~ t
+    in i & iData .~ idata' & iWire .~ wire'

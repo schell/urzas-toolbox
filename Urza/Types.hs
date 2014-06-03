@@ -205,13 +205,19 @@ instance Default Transform2d where
 type Bitmap_Transform2d = (Bitmap, Transform2d)
 
 
-type Timer = Session IO (Timed NominalDiffTime ())
+type TimeDelta = Timed NominalDiffTime ()
+
+
+type Timer = Session IO TimeDelta
+
+
+type UrzaWire e a = Wire TimeDelta e (ReaderT Env Identity) a a
 
 
 data Iteration2d e a = Iteration2d { _iEnv        :: Env
                                    , _iSession    :: Timer
                                    , _iData       :: Either e a
-                                   , _iWire       :: Wire Timer e (ReaderT Env Identity) a a
+                                   , _iWire       :: UrzaWire e a
                                    , _iRender     :: Either e a -> IO (Either e a)
                                    }
 makeLenses ''Iteration2d
