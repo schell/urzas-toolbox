@@ -11,8 +11,10 @@ module Urza.Window (
 
 import Graphics.UI.GLFW as GLFW
 import Control.Concurrent
+import Control.Lens
 import System.IO
 import Urza.Types
+import Graphics.Rendering.OpenGL
 
 
 
@@ -50,7 +52,7 @@ getCharEvent char = foldl isCharEvent Nothing
 input :: WindowVar -> InputEvent -> IO ()
 input mvar e = do
     (es, w) <- takeMVar mvar
-    putMVar mvar (e:es, w)
+    putMVar mvar (es ++ [e], w)
 
 
 -- | Creates a new window. Fails and crashes if no window can be created.
@@ -60,6 +62,7 @@ makeNewWindow pos size title = do
     makeContextCurrent $ Just win
     (uncurry $ setWindowPos win) pos
 
+    let (w, h) = over both fromIntegral size
     mvar <- newMVar ([], win)
 
     setCharCallback win $ Just $ \_ c ->

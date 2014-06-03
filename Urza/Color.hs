@@ -15,6 +15,10 @@ red :: Color4 GLfloat
 red = Color4 1 0 0 1
 
 
+yellow :: Color4 GLfloat
+yellow = Color4 1 1 0 1
+
+
 transparent :: Color4 GLfloat
 transparent = Color4 0 0 0 0
 
