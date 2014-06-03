@@ -61,6 +61,10 @@ library
                        Urza.Shader,
                        Urza.Texture,
                        Urza.Types,
+                       Urza.Wire,
+                       Urza.Wire.Core,
+                       Urza.Wire.Event,
+                       Urza.Wire.Tween,
   --                     Urza.UI,
                        Urza.Window
 
@@ -84,6 +88,7 @@ library
                        OpenGLRaw >=1.4 && <1.5,
                        bytestring >=0.10 && <0.11,
                        freetype2 >=0.1 && <0.2,
+                       netwire >= 5.0 && <5.1,
                        linear -any
 
   -- Directories containing source files.

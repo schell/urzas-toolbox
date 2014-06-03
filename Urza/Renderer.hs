@@ -12,7 +12,8 @@ import           System.Directory
 import           System.Exit
 
 
-
+makeAsciiRenderer :: FilePath -> GLsizei -> IO Renderer
+makeAsciiRenderer fp px = loadText (map toEnum [32..126]) =<< makeRenderer fp px
 
 
 loadText :: String -> Renderer -> IO Renderer
@@ -65,5 +66,3 @@ makeRenderer font px = do
     return Renderer { _shader = s
                     , _atlas = a
                     }
-
-

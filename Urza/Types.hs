@@ -1,9 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Urza.Types where
 
-import Graphics.UI.GLFW as GLFW
-import Control.Concurrent
-import System.IO
+import           Prelude hiding ((.), id)
+import           Graphics.UI.GLFW as GLFW
+import           FRP.Netwire
+import           Control.Wire
+import           Control.Concurrent
+import           Control.Monad.Reader
+import           System.IO
 import           Linear
 import           Graphics.Rendering.OpenGL
 import           Graphics.UI.GLFW as GLFW
@@ -172,6 +176,7 @@ data Env = Env { _envEvent            :: Maybe InputEvent
                } deriving (Show)
 makeLenses ''Env
 
+
 instance Default Env where
     def = Env { _envEvent = Nothing
               , _envCursorOnScreen = False
@@ -181,3 +186,41 @@ instance Default Env where
               }
 
 
+data Transform2d = Transform2d { _t2Position :: Position
+                               , _t2Size     :: Size
+                               , _t2Scale    :: Scale
+                               , _t2Rotation :: Rotation
+                               } deriving (Show)
+makeLenses ''Transform2d
+
+
+instance Default Transform2d where
+    def = Transform2d { _t2Position = Position 0 0
+                      , _t2Size = Size 0 0
+                      , _t2Scale = Scale 1 1
+                      , _t2Rotation = Rotation 0
+                      }
+
+
+type Bitmap_Transform2d = (Bitmap, Transform2d)
+
+
+type Timer = Session IO (Timed NominalDiffTime ())
+
+
+data Iteration2d e a = Iteration2d { _iEnv        :: Env
+                                   , _iSession    :: Timer
+                                   , _iData       :: Either e a
+                                   , _iWire       :: Wire Timer e (ReaderT Env Identity) a a
+                                   , _iRender     :: Either e a -> IO (Either e a)
+                                   }
+makeLenses ''Iteration2d
+
+
+instance (Monoid e) => Default (Iteration2d e a) where
+    def = Iteration2d { _iEnv = def
+                      , _iSession = clockSession_
+                      , _iData = Left mempty
+                      , _iWire = arr id
+                      , _iRender = return
+                      }

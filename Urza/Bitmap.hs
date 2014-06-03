@@ -22,12 +22,12 @@ emptyBitmap = do
     t <- genObjectName
     return $ Bitmap t (Size 0 0)
 
-drawBitmap :: Renderer -> Bitmap -> Position -> Size -> Scale -> Rotation -> IO ()
+drawBitmap :: Renderer -> Bitmap -> Transform2d -> IO ()
 drawBitmap r bmp = drawBitmapWithUVs r bmp uvs
     where uvs = quad 0 0 1 1
 
 
-drawBitmapPixels :: Integral a => Renderer -> Bitmap -> Rectangle a -> Position -> Size -> Scale -> Rotation -> IO ()
+drawBitmapPixels :: Integral a => Renderer -> Bitmap -> Rectangle a -> Transform2d -> IO ()
 drawBitmapPixels r b@(Bitmap _ (Size bw bh)) (Rectangle x y w h) = drawBitmapWithUVs r b uvs
     where [bw',bh'] = map fromIntegral [bw,bh]
           [x',y',w',h'] = map fromIntegral [x,y,w,h]
@@ -43,8 +43,8 @@ splitxys xys (xs,ys) = let x:y:[] = take 2 xys
                        in splitxys (drop 2 xys) (xs ++ [x], ys ++ [y])
 
 
-drawBitmapWithUVs :: Renderer -> Bitmap -> [GLfloat] -> Position -> Size -> Scale -> Rotation -> IO ()
-drawBitmapWithUVs r bmp uvs (Position tx ty) (Size w h) (Scale sx sy) (Rotation phi) = do
+drawBitmapWithUVs :: Renderer -> Bitmap -> [GLfloat] -> Transform2d -> IO ()
+drawBitmapWithUVs r bmp uvs (Transform2d (Position tx ty) (Size w h) (Scale sx sy) (Rotation phi)) = do
     let [tx',ty',w',h'] = map fromIntegral [tx,ty,w,h]
         vs  = quad 0 0 1 1
         qtr = axisAngle (V3 0 0 1) phi
