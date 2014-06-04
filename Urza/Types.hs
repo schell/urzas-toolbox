@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Urza.Types where
 
 import           Prelude hiding ((.), id)
@@ -171,22 +173,22 @@ type InputEvents_Window = ([InputEvent], Window)
 type WindowVar = MVar InputEvents_Window
 
 
-data Env = Env { _envEvent            :: Maybe InputEvent
-               , _envCursorOnScreen   :: Bool
-               , _envLastCursorPos    :: (Double, Double)
-               , _envKeysDown         :: S.Set Key
-               , _envMouseButtonsDown :: S.Set MouseButton
-               } deriving (Show)
-makeLenses ''Env
+data InputEnv = InputEnv { _ienvEvent            :: Maybe InputEvent
+                         , _ienvCursorOnScreen   :: Bool
+                         , _ienvLastCursorPos    :: (Double, Double)
+                         , _ienvKeysDown         :: S.Set Key
+                         , _ienvMouseButtonsDown :: S.Set MouseButton
+                         } deriving (Show)
+makeLenses ''InputEnv
 
 
-instance Default Env where
-    def = Env { _envEvent = Nothing
-              , _envCursorOnScreen = False
-              , _envLastCursorPos = (0,0)
-              , _envKeysDown = mempty
-              , _envMouseButtonsDown = mempty
-              }
+instance Default InputEnv where
+    def = InputEnv { _ienvEvent = Nothing
+                   , _ienvCursorOnScreen = False
+                   , _ienvLastCursorPos = (0,0)
+                   , _ienvKeysDown = mempty
+                   , _ienvMouseButtonsDown = mempty
+                   }
 
 
 data Transform2d = Transform2d { _t2Position :: Position
@@ -214,22 +216,42 @@ type TimeDelta = Timed NominalDiffTime ()
 type Timer = Session IO TimeDelta
 
 
-type UrzaWire e a = Wire TimeDelta e (ReaderT Env Identity) a a
+type UrzaWire en ex a = Wire TimeDelta ex (ReaderT en Identity) a a
 
 
-data Iteration2d e a = Iteration2d { _iEnv        :: Env
-                                   , _iSession    :: Timer
-                                   , _iData       :: Either e a
-                                   , _iWire       :: UrzaWire e a
-                                   , _iRender     :: Either e a -> IO (Either e a)
-                                   }
-makeLenses ''Iteration2d
+type InputReader = ReaderT InputEnv Identity
 
 
-instance (Monoid e) => Default (Iteration2d e a) where
-    def = Iteration2d { _iEnv = def
-                      , _iSession = clockSession_
-                      , _iData = Left mempty
-                      , _iWire = arr id
-                      , _iRender = return
-                      }
+type InputWire a b = Wire TimeDelta () InputReader a b
+
+
+-- | An iteration is all the data you need for one frame.
+data Iteration env event xcept a =
+    Iteration { _iEnv        :: env
+              -- ^ The environment wires use to trigger events.
+              , _iSession    :: Timer
+              -- ^ The current timer.
+              , _iData       :: Either xcept a
+              -- ^ Our user data (some display object).
+              , _iWire       :: UrzaWire env xcept a
+              -- ^ A control wire for changing user data over time and
+              -- responding to events.
+              , _iProcessEv  :: Maybe event -> env -> env
+              -- ^ Processes an event into the environment.
+              , _iRender     :: Either xcept a -> IO (Either xcept a)
+              -- ^ Function for rendering user data and performing IO.
+              }
+makeLenses ''Iteration
+
+
+type WindowIteration a = Iteration InputEnv InputEvent () a
+
+
+instance Default (WindowIteration ()) where
+    def = Iteration { _iEnv = def
+                    , _iSession = clockSession_
+                    , _iData = Left mempty
+                    , _iWire = arr id
+                    , _iProcessEv = const id
+                    , _iRender = return
+                    }

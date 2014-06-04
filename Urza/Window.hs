@@ -1,7 +1,8 @@
 module Urza.Window (
     module GLFW,
     initUrza,
-    loopUrza
+    loopUrza,
+    processInputEnv
 ) where
 
 import           Graphics.UI.GLFW as GLFW
@@ -10,19 +11,22 @@ import           Control.Concurrent
 import           Control.Lens
 import           Control.Applicative
 import qualified Control.Monad as M
+import qualified Data.Set as S
+import           Data.Maybe
 import           System.IO
 import           System.Exit
 import           Urza.Types
 import           Urza.Wire.Core
 
 
-loopUrza :: WindowVar -> Iteration2d e a -> IO ()
+loopUrza :: WindowVar -> Iteration InputEnv InputEvent () a -> IO ()
 loopUrza wvar i = do
     -- Execute Urza callbacks and load up events.
     pollEvents
 
     -- Pop off the oldest event for processing.
     mEvent <- popOldestInputEvent wvar
+    --M.when (isJust mEvent) $ print $ fromJust mEvent
     window <- snd <$> readMVar wvar
 
     -- Pre render setup
@@ -83,9 +87,16 @@ makeNewWindow pos size title = do
 
 -- | Inject some input into a WindowVar.
 input :: WindowVar -> InputEvent -> IO ()
+input mvar e@(WindowSizeEvent _ _) = do
+    (es, w) <- takeMVar mvar
+    let es' = filter noWindowEvs es
+        noWindowEvs (WindowSizeEvent _ _) = False 
+        noWindowEvs _                     = True
+    putMVar mvar (es' ++ [e], w)
 input mvar e = do
     (es, w) <- takeMVar mvar
     putMVar mvar (es ++ [e], w)
+
 
 -- | If possible, pops the oldest InputEvent off a WindowVar's events and
 -- returns it.
@@ -99,4 +110,15 @@ popOldestInputEvent wvar = do
     putMVar wvar (events', window)
     return mEvent
 
--- |
+
+-- | Processes individual events into an input ienvironment.
+processInputEnv :: Maybe InputEvent -> InputEnv -> InputEnv
+processInputEnv mE@(Just (CursorMoveEvent x y)) ienv =
+    ienv & ienvLastCursorPos .~ (x,y) & ienvEvent .~ mE
+processInputEnv mE@(Just (CursorEnterEvent cs)) ienv =
+    ienv & ienvCursorOnScreen .~ (cs == CursorState'InWindow) & ienvEvent .~ mE
+processInputEnv mE@(Just (MouseButtonEvent mb MouseButtonState'Pressed _)) ienv =
+    ienv & (ienvMouseButtonsDown %~ S.insert mb) & ienvEvent .~ mE
+processInputEnv mE@(Just (MouseButtonEvent mb MouseButtonState'Released _)) ienv =
+    ienv & (ienvMouseButtonsDown %~ S.delete mb) & ienvEvent .~ mE
+processInputEnv mE ienv = ienv & ienvEvent .~ mE
