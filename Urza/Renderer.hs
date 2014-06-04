@@ -55,11 +55,6 @@ makeRenderer font px = do
         putStrLn $ show font ++ " does not exist."
         exitSuccess
 
-    -- TODO: Does this blend stuff have to be here?
-    blend $= Enabled
-    blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-    depthFunc $= Nothing
-
     s <- makeShaderProgram
     a <- makeAtlas font px
 

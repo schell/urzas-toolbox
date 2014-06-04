@@ -165,7 +165,10 @@ data InputEvent = NoInputEvent
                 deriving (Show, Eq, Ord)
 
 
-type WindowVar = MVar ([InputEvent], Window)
+type InputEvents_Window = ([InputEvent], Window)
+
+
+type WindowVar = MVar InputEvents_Window
 
 
 data Env = Env { _envEvent            :: Maybe InputEvent

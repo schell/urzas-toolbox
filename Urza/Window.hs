@@ -1,58 +1,50 @@
 module Urza.Window (
     module GLFW,
-    InputEvent(..),
-    getMouseMoveEvent,
-    getMouseUpEvent,
-    getKeyUpOf,
-    getCharEvent,
-    WindowVar,
-    initUrza
+    initUrza,
+    loopUrza
 ) where
 
-import Graphics.UI.GLFW as GLFW
-import Control.Concurrent
-import Control.Lens
-import System.IO
-import Urza.Types
-import Graphics.Rendering.OpenGL
+import           Graphics.UI.GLFW as GLFW
+import           Graphics.Rendering.OpenGL
+import           Control.Concurrent
+import           Control.Lens
+import           Control.Applicative
+import qualified Control.Monad as M
+import           System.IO
+import           System.Exit
+import           Urza.Types
+import           Urza.Wire.Core
 
 
+loopUrza :: WindowVar -> Iteration2d e a -> IO ()
+loopUrza wvar i = do
+    -- Execute Urza callbacks and load up events.
+    pollEvents
 
-getMouseUpEvent :: [InputEvent] -> Maybe InputEvent
-getMouseUpEvent = foldl isMouseUpEvent Nothing
-    where isMouseUpEvent (Just e) _ = Just e
-          isMouseUpEvent _ e@(MouseButtonEvent _ MouseButtonState'Released _) = Just e
-          isMouseUpEvent _ _ = Nothing
+    -- Pop off the oldest event for processing.
+    mEvent <- popOldestInputEvent wvar
+    window <- snd <$> readMVar wvar
 
+    -- Pre render setup
+    makeContextCurrent $ Just window
 
-getMouseMoveEvent :: [InputEvent] -> Maybe InputEvent
-getMouseMoveEvent = foldl isMouseMoveEvent Nothing
-    where isMouseMoveEvent (Just e) _ = Just e
-          isMouseMoveEvent _ e@(CursorMoveEvent _ _) = Just e
-          isMouseMoveEvent _ _ = Nothing
+    -- Process, update and render our app iteration.
+    i' <- stepAndRender i mEvent
 
-
-getKeyUpOf :: Key -> [InputEvent] -> Maybe InputEvent
-getKeyUpOf key = foldl isKeyUpEvent Nothing
-    where isKeyUpEvent (Just e) _ = Just e
-          isKeyUpEvent Nothing e@(KeyEvent k _ KeyState'Released _) = if key == k then Just e else Nothing
-          isKeyUpEvent _ _ = Nothing
-
-
-getCharEvent :: Char -> [InputEvent] -> Maybe InputEvent
-getCharEvent char = foldl isCharEvent Nothing
-    where isCharEvent (Just e) _  = Just e
-          isCharEvent Nothing e@(CharEvent c) = if char == c then Just e else Nothing
-          isCharEvent _ _ = Nothing
+    swapBuffers window
+    shouldClose <- windowShouldClose window
+    M.when shouldClose exitSuccess
+    loopUrza wvar i'
 
 
-
-
--- | Inject some input into a WindowVar.
-input :: WindowVar -> InputEvent -> IO ()
-input mvar e = do
-    (es, w) <- takeMVar mvar
-    putMVar mvar (es ++ [e], w)
+initUrza :: (Int, Int) -> (Int, Int) -> String -> IO WindowVar
+initUrza pos size title = do
+    setErrorCallback $ Just $ \_ -> hPutStrLn stderr
+    True <- GLFW.init
+    defaultWindowHints
+    windowHint $ GLFW.WindowHint'OpenGLDebugContext True
+    windowHint $ GLFW.WindowHint'DepthBits 16
+    makeNewWindow pos size title
 
 
 -- | Creates a new window. Fails and crashes if no window can be created.
@@ -63,7 +55,7 @@ makeNewWindow pos size title = do
     (uncurry $ setWindowPos win) pos
 
     let (w, h) = over both fromIntegral size
-    mvar <- newMVar ([], win)
+    mvar <- newMVar ([WindowSizeEvent w h, WindowSizeEvent w h], win)
 
     setCharCallback win $ Just $ \_ c ->
         input mvar $ CharEvent c
@@ -86,16 +78,25 @@ makeNewWindow pos size title = do
     setScrollCallback win $ Just $ \_ x y ->
         input mvar $ ScrollEvent x y
 
-
     return mvar
 
 
-initUrza :: (Int, Int) -> (Int, Int) -> String -> IO WindowVar
-initUrza pos size title = do
-    setErrorCallback $ Just $ \_ -> hPutStrLn stderr
-    True <- GLFW.init
-    defaultWindowHints
-    windowHint $ GLFW.WindowHint'OpenGLDebugContext True
-    windowHint $ GLFW.WindowHint'DepthBits 16
-    makeNewWindow pos size title
+-- | Inject some input into a WindowVar.
+input :: WindowVar -> InputEvent -> IO ()
+input mvar e = do
+    (es, w) <- takeMVar mvar
+    putMVar mvar (es ++ [e], w)
 
+-- | If possible, pops the oldest InputEvent off a WindowVar's events and
+-- returns it.
+popOldestInputEvent :: WindowVar -> IO (Maybe InputEvent)
+popOldestInputEvent wvar = do
+    (events, window) <- takeMVar wvar
+    let (mEvent, events') = if null events
+                              then (Nothing, [])
+                              else (Just $ head events, drop 1 events)
+    -- Put the rest back for later.
+    putMVar wvar (events', window)
+    return mEvent
+
+-- |

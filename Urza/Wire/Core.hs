@@ -15,8 +15,19 @@ import           Control.Lens hiding ((#), at)
 
 -- | Iterates and renders an Iteration2d. Processes the InputEvent into the
 -- iteration.
-stepAndRender :: MVar (Iteration2d e a) -> Maybe InputEvent -> IO ()
-stepAndRender ivar mEvent = stepWithIterationVar ivar mEvent >> renderWithIterationVar ivar
+stepAndRender :: Iteration2d e a -> Maybe InputEvent -> IO (Iteration2d e a) 
+stepAndRender i mEvent = do
+    let i' = i & iEnv %~ processEnv mEvent
+    (dt, session) <- stepSession $ i'^.iSession
+    let i'' = stepIteration i' dt & iSession .~ session
+    idata' <- i''^.iRender $ i''^.iData
+    return $ i'' & iData .~ idata'
+
+
+-- | Iterates and renders an Iteration2d stored in an MVar. Processes the 
+-- InputEvent into the iteration.
+stepAndRenderIVar :: MVar (Iteration2d e a) -> Maybe InputEvent -> IO ()
+stepAndRenderIVar ivar mEvent = stepWithIterationVar ivar mEvent >> renderWithIterationVar ivar
 
 
 -- | Renders an iteration stored in an MVar. Updates the MVar with the
