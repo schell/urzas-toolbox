@@ -3,23 +3,31 @@ module Urza.Color where
 import Graphics.Rendering.OpenGL
 
 
-black :: Color4 GLfloat
+black :: (Num a, Fractional a) => Color4 a
 black = Color4 0 0 0 1
 
 
-white :: Color4 GLfloat
+white :: (Num a, Fractional a) => Color4 a
 white = Color4 1 1 1 1
 
 
-red :: Color4 GLfloat
+red :: (Num a, Fractional a) => Color4 a
 red = Color4 1 0 0 1
 
 
-yellow :: Color4 GLfloat
+green :: (Num a, Fractional a) => Color4 a
+green = Color4 0 1 0 1
+
+
+blue :: (Num a, Fractional a) => Color4 a
+blue = Color4 0 0 1 1
+
+
+yellow :: (Num a, Fractional a) => Color4 a
 yellow = Color4 1 1 0 1
 
 
-transparent :: Color4 GLfloat
+transparent :: (Num a, Fractional a) => Color4 a
 transparent = Color4 0 0 0 0
 
 

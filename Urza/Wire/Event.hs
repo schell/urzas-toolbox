@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Arrows #-}
 module Urza.Wire.Event where
 
 import           Prelude hiding ((.), id, until)
@@ -12,6 +13,16 @@ import           Control.Concurrent
 import qualified Data.Set as S
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels, Bitmap)
 import           Control.Lens hiding ((#), at)
+
+
+useNow :: (Monad m, Monoid e) => Wire s e m (Event a) a
+useNow = mkGen_ $ return . switcheroo
+    where switcheroo NoEvent = Left mempty
+          switcheroo (Event a) = Right a
+
+
+useNow_ :: (Monad m, Monoid e) => Wire s e m (Event a) ()
+useNow_ = arr (const ()) . useNow
 
 
 keyIsDown :: MonadReader InputEnv m => Key -> Wire s e m a (Event a)
@@ -38,6 +49,11 @@ keyEvent key kstate = mkGen_ $ \a -> do
     return $ Right $ case mEv of
         Just (KeyEvent k _ ks _) -> if k == key && ks == kstate then Event a else NoEvent
         _ -> NoEvent
+
+onCharEvent :: (MonadReader InputEnv m, Monoid e) => Char -> Wire s e m a (Event ())
+onCharEvent ch = proc _ -> do
+   ch' <- useNow . charEvent -< ()
+   returnA -< if ch' == ch then Event () else NoEvent
 
 
 charEvent :: MonadReader InputEnv m => Wire s e m a (Event Char)

@@ -179,49 +179,48 @@ closePath = do
 -- box of the result rendering.
 -- Assumes a shader is set up with the proper uniforms to handle the
 -- drawing.
-stroke :: Path -> IO (Rectangle Double)
-stroke p = do
-    let vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p^.pathPoints ]
-        uvs = map realToFrac $ concat [ [red,g,bl,a] | Color4 red g bl a <- p^.pathColors ]
-        (l,r) = p^.pathXBounds
-        (t,b) = p^.pathYBounds
-    (i,j) <- bindAndBufferVertsColors vs uvs
-    drawArrays Lines 0 $ p^.pathLength
-    deleteObjectNames [i,j]
-    return $ Rectangle l t (r - l) (b - t)
+stroke :: Renderer -> Path -> IO (Rectangle Double)
+stroke r p = drawPath r p Lines
 
 
-strokePath :: State Path () -> IO (Rectangle Double)
-strokePath = stroke . execNewPath
+strokePath :: Renderer -> State Path () -> IO (Rectangle Double)
+strokePath r = stroke r . execNewPath
 
 
-strokePath_ :: State Path () -> IO ()
-strokePath_ s = strokePath s >> return ()
+strokePath_ :: Renderer -> State Path () -> IO ()
+strokePath_ r s = strokePath r s >> return ()
 
 
 -- | Draws a filled path as a polygon into the current opengl context.
 -- We should probably be doing earclipping and sending tris to the gpu but
 -- drawing in Polygon primitive mode works for now.
-fill :: Path -> IO (Rectangle Double)
-fill p = do
-    -- Make sure
-    let p'  = execState closePath p
-        vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p'^.pathPoints ]
-        uvs = map realToFrac $ concat [ [r,g,b,a] | Color4 r g b a <- p'^.pathColors ]
+fill :: Renderer -> Path -> IO (Rectangle Double)
+fill r p = drawPath r p' Polygon 
+    where p' = execState closePath p
+
+
+drawPath :: Renderer -> Path -> PrimitiveMode -> IO (Rectangle Double)
+drawPath r p mode = do
+    let vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p^.pathPoints ]
+        uvs = map realToFrac $ concat [ [r,g,b,a] | Color4 r g b a <- p^.pathColors ]
         (l,rt) = p^.pathXBounds
         (t,bm) = p^.pathYBounds
     (i,j) <- bindAndBufferVertsColors vs uvs
-    drawArrays Polygon 0 $ p'^.pathLength
+    texture Texture2D $= Disabled
+    r^.shader.setIs3d $ False
+    r^.shader.setIsTextured $ False
+    r^.shader.setColorIsReplaced $ False
+    drawArrays mode 0 $ p^.pathLength
     deleteObjectNames [i,j]
     return $ Rectangle l t (rt - l) (bm - t)
 
 
-fillPath :: State Path () -> IO (Rectangle Double)
-fillPath = fill . execNewPath
+fillPath :: Renderer -> State Path () -> IO (Rectangle Double)
+fillPath r = fill r . execNewPath
 
 
-fillPath_ :: State Path () -> IO ()
-fillPath_ s = fillPath s >> return ()
+fillPath_ :: Renderer -> State Path () -> IO ()
+fillPath_ r s = fillPath r s >> return ()
 
 
 deCasteljau :: Double -> [(Double, Double)] -> (Double, Double)

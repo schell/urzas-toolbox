@@ -4,9 +4,11 @@ import           Prelude hiding ((.), id, until)
 import           Urza.Types
 import           Graphics.UI.GLFW
 import           FRP.Netwire
+import           Data.Maybe
 import           Control.Wire
 import           Control.Wire.Unsafe.Event
 import           Control.Monad.Reader hiding (when)
+import           Control.Monad as M
 import           Control.Concurrent
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels, Bitmap)
 import           Control.Lens hiding ((#), at)
@@ -14,8 +16,9 @@ import           Control.Lens hiding ((#), at)
 
 -- | Iterates and renders an Iteration. Processes the InputEvent into the
 -- iteration.
-stepAndRender :: Iteration en ev ex a -> Maybe ev -> IO (Iteration en ev ex a)
+stepAndRender :: Show ev => Iteration en ev ex a -> Maybe ev -> IO (Iteration en ev ex a)
 stepAndRender i mEvent = do
+    --M.when (isJust mEvent) $ print mEvent
     let i' = i & iEnv %~ (i^.iProcessEv) mEvent
     (dt, session) <- stepSession $ i'^.iSession
     let i'' = stepIteration i' dt & iSession .~ session

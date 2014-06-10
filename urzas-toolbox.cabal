@@ -57,6 +57,8 @@ library
                        Urza.Draw,
                        Urza.Error,
                        Urza.Math,
+                       Urza.Math.Rectangle,
+                       Urza.Math.Matrix,
                        Urza.Renderer,
                        Urza.Shader,
                        Urza.Texture,
@@ -73,7 +75,7 @@ library
   -- other-modules:
 
   -- LANGUAGE extensions used by modules in this package.
-  other-extensions:    TemplateHaskell, TypeFamilies, OverloadedStrings
+  other-extensions:    TemplateHaskell, TypeFamilies, OverloadedStrings, Arrows
 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.7 && <4.8,
