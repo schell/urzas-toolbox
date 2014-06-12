@@ -13,7 +13,9 @@ module Urza.Math.Rectangle
   containsRect,
   intersectsRect,
   quadrants,
-  union
+  union,
+  zeroRect,
+  areaOf
 ) where
 
 import Urza.Types
@@ -85,3 +87,6 @@ union (Rectangle x1 y1 w1 h1) (Rectangle x2 y2 w2 h2) = Rectangle x y w h
 zeroRect :: Num a => Rectangle a
 zeroRect = Rectangle 0 0 0 0
 
+
+areaOf :: (Num a) => Rectangle a -> a
+areaOf r = (width r) * (height r)

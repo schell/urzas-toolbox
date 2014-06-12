@@ -13,6 +13,9 @@ import           Control.Concurrent
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels, Bitmap)
 import           Control.Lens hiding ((#), at)
 
+-- | A simple pass through wire.
+pass :: Monad m => Wire s e m a a
+pass = arr id
 
 -- | Iterates and renders an Iteration. Processes the InputEvent into the
 -- iteration.

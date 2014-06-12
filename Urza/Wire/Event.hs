@@ -14,7 +14,6 @@ import qualified Data.Set as S
 import           Graphics.Rendering.OpenGL hiding (Matrix, renderer, get, drawPixels, Bitmap)
 import           Control.Lens hiding ((#), at)
 
-
 useNow :: (Monad m, Monoid e) => Wire s e m (Event a) a
 useNow = mkGen_ $ return . switcheroo
     where switcheroo NoEvent = Left mempty
@@ -92,10 +91,25 @@ cursorMoveEvent = mkGen_ $ \_ -> do
         _ -> NoEvent
 
 
+mouseDownLeft :: InputWire () (Event (Double, Double))
+mouseDownLeft = mouseButtonEvent MouseButton'1 MouseButtonState'Pressed
+
+
+mouseUpLeft :: InputWire () (Event (Double, Double))
+mouseUpLeft = mouseButtonEvent MouseButton'1 MouseButtonState'Released
+
+
 mouseIsDown :: MonadReader InputEnv m => MouseButton -> Wire s e m a (Event a)
 mouseIsDown button = mkGen_ $ \a -> do
     isDown <- asks $ S.member button . _ienvMouseButtonsDown
     return $ Right $ if isDown then Event a else NoEvent
+
+
+mouseIsDraggingWith :: MonadReader InputEnv m => MouseButton -> Wire s e m a (Event (Double, Double))
+mouseIsDraggingWith mbutton = mkGen_ $ \_ -> do
+   cdown <- asks $ S.member mbutton . _ienvMouseButtonsDown
+   pos <- asks _ienvLastCursorPos
+   return $ Right $ if cdown then Event pos else NoEvent
 
 
 mouseButtonEvent :: MonadReader InputEnv m => MouseButton -> MouseButtonState -> Wire s e m a (Event (Double, Double))
