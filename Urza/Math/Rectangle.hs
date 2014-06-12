@@ -15,7 +15,10 @@ module Urza.Math.Rectangle
   quadrants,
   union,
   zeroRect,
-  areaOf
+  areaOf,
+  absRect,
+  untupleXYRectangle,
+  untupleWHRectangle
 ) where
 
 import Urza.Types
@@ -31,6 +34,13 @@ unsizeRectangle f (Rectangle _ _ w h) = f $ Size (floor w) (floor h)
 
 unposRectangle :: RealFrac a => (Size -> b) -> Rectangle a -> b
 unposRectangle f (Rectangle _ _ w h) = f $ Size (floor w) (floor h)
+
+untupleXYRectangle :: ((a,a) -> b) -> Rectangle a -> b
+untupleXYRectangle f (Rectangle x y _ _) = f (x, y)
+
+
+untupleWHRectangle :: ((a,a) -> b) -> Rectangle a -> b
+untupleWHRectangle f (Rectangle _ _ w h) = f (w, h)
 
 
 left :: Rectangle a -> a
@@ -90,3 +100,10 @@ zeroRect = Rectangle 0 0 0 0
 
 areaOf :: (Num a) => Rectangle a -> a
 areaOf r = (width r) * (height r)
+
+absRect :: (Num a) => Rectangle a -> Rectangle a
+absRect (Rectangle x y w h) = Rectangle x' y' w' h'
+    where x = if w < 0 then x + w else x
+          y = if h < 0 then y + h else y
+          w = abs w
+          h = abs h
