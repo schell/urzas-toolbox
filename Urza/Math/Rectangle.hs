@@ -101,9 +101,11 @@ zeroRect = Rectangle 0 0 0 0
 areaOf :: (Num a) => Rectangle a -> a
 areaOf r = (width r) * (height r)
 
-absRect :: (Num a) => Rectangle a -> Rectangle a
+-- | Returns a rectangle with a non-negative width and height that occupies
+-- the same space as the original.
+absRect :: (Num a, Ord a) => Rectangle a -> Rectangle a
 absRect (Rectangle x y w h) = Rectangle x' y' w' h'
-    where x = if w < 0 then x + w else x
-          y = if h < 0 then y + h else y
-          w = abs w
-          h = abs h
+    where x' = if w < 0 then x + w else x
+          y' = if h < 0 then y + h else y
+          w' = abs w
+          h' = abs h

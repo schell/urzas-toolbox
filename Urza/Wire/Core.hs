@@ -17,6 +17,16 @@ import           Control.Lens hiding ((#), at)
 pass :: Monad m => Wire s e m a a
 pass = arr id
 
+windowSize :: InputWire a Size
+windowSize = (arr $ \(w, h) -> Size (fromIntegral w) (fromIntegral h)) . asSoonAs . windowResizeEvent
+
+traceWire :: (Monad m, Show a) => Wire s e m a a
+traceWire = arr (\a -> trace (show a) a)
+
+traceWith :: (Monad m) => String -> Wire s e m a a
+traceWith s = arr (\a -> trace s a)
+
+
 -- | Iterates and renders an Iteration. Processes the InputEvent into the
 -- iteration.
 stepAndRender :: Show ev => Iteration en ev ex a -> Maybe ev -> IO (Iteration en ev ex a)
