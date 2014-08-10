@@ -34,7 +34,7 @@ drawTextAt' r pen s = do
         emptyAcc     = BufferAcc (r^.atlas) mempty pen (fromIntegral x, -1/0) (fromIntegral y, -1/0)
         Position x y = pen
         numIndices   = floor $ ((fromIntegral $ length vs) / 2.0 :: Double)
-    (i,j) <- bindAndBufferVertsUVs vs uvs
+    ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vs uvs
     texture Texture2D $= Enabled
     activeTexture $= TextureUnit 0
     textureBinding Texture2D $= Just (r^.atlas.atlasTextureObject)

@@ -16,6 +16,25 @@ import Data.Maybe                   (isNothing)
 import Linear
 
 
+makeTextureRenderAndRelease :: ShaderProgram -> TextureObject -> IO (Transform2d Double -> IO (), IO ())
+makeTextureRenderAndRelease shdr tex = do
+    (vb@(i,_,_),uvb@(j,_,_)) <- bindAndBufferVertsUVs vs uvs
+    return (renderTexture vb uvb, deleteObjectNames [i, j])
+    where uvs = quad 0 0 1 1
+          vs  = uvs
+          renderTexture vb uvb tfrm = do bindVertexBuffer vb
+                                         bindVertexBuffer uvb
+                                         texture Texture2D $= Enabled
+                                         activeTexture $= TextureUnit 0
+                                         textureBinding Texture2D $= Just tex
+                                         shdr^.setIs3d $ False
+                                         shdr^.setIsTextured $ True
+                                         shdr^.setColorIsReplaced $ False
+                                         shdr^.setSampler $ Index1 0
+                                         shdr^.setModelview $ toMatrix tfrm
+                                         drawArrays Triangles 0 6
+
+
 -- | Load a temporary texture and do some post processing on it if possible.
 loadTempTextureAnd :: FilePath -> (TextureObject -> IO a) -> IO (Maybe a)
 loadTempTextureAnd file f = do
@@ -36,12 +55,15 @@ loadTexture file = do
     mTex <- readTexture file
     unless (isNothing mTex) $ do
         -- Set the texture params on our bound texture.
-        textureFilter   Texture2D   $= ((Nearest, Nothing), Nearest)
-        textureWrapMode Texture2D S $= (Repeated, Clamp)
-        textureWrapMode Texture2D T $= (Repeated, Clamp)
+        setCommonTextureParams
     when (isNothing mTex) $ putStrLn $ "Could not initialize "++ file
     return mTex
 
+setCommonTextureParams :: IO ()
+setCommonTextureParams = do
+    textureFilter   Texture2D   $= ((Nearest, Nothing), Nearest)
+    textureWrapMode Texture2D S $= (Repeated, Clamp)
+    textureWrapMode Texture2D T $= (Repeated, Clamp)
 
 readTexture :: FilePath -> IO (Maybe TextureObject)
 readTexture f = do
@@ -58,6 +80,14 @@ readTexture f = do
             success <- bufferDataIntoBoundTexture img
             unless success $ putStrLn $ "    ("++f++")"
             return $ Just tex
+
+
+bufferImage :: Image PixelRGBA8 -> IO (Maybe TextureObject)
+bufferImage img = do
+    t  <- newBoundTexUnit 0
+    ok <- unsafeTexImage2D RGBA8 RGBA img
+    setCommonTextureParams
+    return $ if ok then Just t else Nothing
 
 
 newBoundTexUnit :: Int -> IO TextureObject
@@ -137,23 +167,24 @@ renderToTexture (Size w h) fmt ioF = do
     return tex
 
 
--- | Draws a full texture into the destination rectangle in the currently
--- bound framebuffer.
-drawTexture :: Integral a => ShaderProgram -> TextureObject -> Rectangle a -> IO ()
-drawTexture shd tex (Rectangle x y w h) = do
-    let [x',y',w',h'] = map fromIntegral [x,y,w,h] :: [GLfloat]
-        mv = transM44 x' y' 0 !*! scaleM44 w' h' 1 
-        --mv = translationMatrix3d x' y' 0 `multiply` scaleMatrix3d w' h' 1
-        unit = quad 0 0 1 1
-        unit'= texQuad 0 0 1 1
-    currentProgram $= Just (shd^.program)
-    shd^.setModelview $ mv
-    shd^.setIsTextured $ True
-    shd^.setColorIsReplaced $ False
-    shd^.setSampler $ Index1 0
-    (i,j) <- bindAndBufferVertsUVs unit unit'
+drawTexture :: ShaderProgram -> TextureObject -> Transform2d Double -> IO ()
+drawTexture shdr tex = drawTextureWithUVs shdr tex uvs
+    where uvs = quad 0 0 1 1
+
+
+drawTextureWithUVs :: ShaderProgram -> TextureObject -> [GLfloat] -> Transform2d Double -> IO ()
+drawTextureWithUVs shdr tex uvs tfrm = do
+    let --mat = toMatrix tfrm
+        vs  = quad 0 0 1 1
+    ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vs uvs
+    texture Texture2D $= Enabled
     activeTexture $= TextureUnit 0
     textureBinding Texture2D $= Just tex
+    shdr^.setIs3d $ False
+    shdr^.setIsTextured $ True
+    shdr^.setColorIsReplaced $ False
+    shdr^.setSampler $ Index1 0
+    shdr^.setModelview $ toMatrix tfrm
     drawArrays Triangles 0 6
     deleteObjectNames [i,j]
 
@@ -189,34 +220,66 @@ flipTexture shdr tex = do
         shdr^.setIsTextured $ True
         activeTexture $= TextureUnit 0
         textureBinding Texture2D $= Just tex
-        (i,j) <- bindAndBufferVertsUVs vs us
+        ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vs us
         drawArrays Triangles 0 6
         bindBuffer ArrayBuffer $= Nothing
         deleteObjectNames [i,j]
 
 -- | Draws a source rectangle portion of a texture into a destination rectangle
 -- in the currently bound framebuffer.
-drawPixels :: (RealFrac a, Integral b)
-           => ShaderProgram -- ^ The shader to use for rendering.
-           -> TextureObject -- ^ The texture to render.
-           -> Rectangle a   -- ^ The source rectangle. Keep in mind opengl's
-                            -- texture coordinate space is flipped, with
-                            -- (0,0) set in the lower left, y increasing upward.
-           -> Rectangle b   -- ^ The destination rectangle to draw into. (0,0)
-                            -- is the upper left, y increasing downward.
+drawPixels :: ShaderProgram
+           -- ^ The shader to use for rendering.
+           -> TextureObject
+           -- ^ The texture to render.
+           -> BoundingBox
+           -- ^ The source rectangle. Keep in mind opengl's
+           -- texture coordinate space is flipped, with
+           -- (0,0) set in the lower left, y increasing upward.
+           -> Transform2d Double
+           -- ^ The transform to apply.
            -> IO ()
-drawPixels shd tex from' (Rectangle x2 y2 w2 h2) = do
-    let [x2',y2',w2',h2'] = map fromIntegral [x2,y2,w2,h2] :: [GLfloat]
-        mv = transM44 x2' y2' 0 !*! scaleM44 w2' h2' 1
-        unit = quad 0 0 1 1
-        unit'= map realToFrac $ uncurryRectangle texQuad from'
+drawPixels shdr t frm = drawPixelsWithM44 shdr t frm . toMatrix
+
+-- | Draws a source rectangle portion of a texture into a destination rectangle
+-- in the currently bound framebuffer.
+drawPixelsFromTo :: ShaderProgram
+                 -- ^ The shader to use for rendering.
+                 -> TextureObject
+                 -- ^ The texture to render.
+                 -> BoundingBox
+                 -- ^ The source rectangle. Keep in mind opengl's
+                 -- texture coordinate space is flipped, with
+                 -- (0,0) set in the lower left, y increasing upward.
+                 -> BoundingBox
+                 -- ^ The destination rectangle to draw into. (0,0)
+                 -- is the upper left, y increasing downward.
+                 -> IO ()
+drawPixelsFromTo shd tex from' (Rectangle x2 y2 w2 h2) =
+    drawPixelsWithM44 shd tex from' mv
+        where mv = transM44 x2 y2 0 !*! scaleM44 w2 h2 1
+
+drawPixelsWithM44 :: ShaderProgram
+                  -- ^ The shader to use for rendering.
+                  -> TextureObject
+                  -- ^ The texture to render.
+                  -> BoundingBox
+                  -- ^ The source rectangle. Keep in mind opengl's
+                  -- texture coordinate space is flipped, with
+                  -- (0,0) set in the lower left, y increasing upward.
+                  -> M44 Double
+                  -- ^ The modelview matrix.
+                  -> IO ()
+drawPixelsWithM44 shd tex from' mv = do
+    let u = quad 0 0 1 1
+        u'= map realToFrac $ uncurryRectangle texQuad from'
     currentProgram $= Just (shd^.program)
     shd^.setModelview $ mv
     shd^.setIsTextured $ True
     shd^.setColorIsReplaced $ False
     shd^.setSampler $ Index1 0
-    (i,j) <- bindAndBufferVertsUVs unit unit'
+    ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs u u'
     activeTexture $= TextureUnit 0
     textureBinding Texture2D $= Just tex
     drawArrays Triangles 0 6
     deleteObjectNames [i,j]
+

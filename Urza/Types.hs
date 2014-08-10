@@ -5,18 +5,19 @@ module Urza.Types where
 
 import           Prelude hiding ((.), id)
 import           Graphics.UI.GLFW as GLFW
-import           FRP.Netwire
-import           Control.Wire
+--import           Control.Wire
 import           Control.Concurrent
-import           Control.Monad.Reader
-import           System.IO
+--import           Control.Monad.Reader
+import           Control.Monad.State
+--import           System.IO
 import           Linear
 import           Graphics.Rendering.OpenGL
-import           Graphics.UI.GLFW as GLFW
+--import           Graphics.UI.GLFW as GLFW
 import           Control.Lens
 import           Data.Monoid
 import qualified Data.IntMap as IM
-import qualified Data.Set as S
+--import qualified Data.Set as S
+import           Urza.Input.Types
 
 
 class Default a where
@@ -29,31 +30,30 @@ data Rectangle a = Rectangle a a a a deriving (Show, Ord, Eq)
 type BoundingBox = Rectangle Double
 
 
-data Point2d = Point2d Double Double deriving (Show, Eq, Ord)
-
-
 type PathColor = Color4 Double
 
 
 type Range a = (a, a)
 
 
-data Path = Path { _pathPoints :: [Point2d]
-                 , _pathColors :: [PathColor]
-                 , _pathLength :: NumArrayIndices
-                 , _pathColor  :: PathColor
-                 , _pathPoint  :: Point2d
-                 , _pathXBounds:: Range Double
-                 , _pathYBounds:: Range Double
-                 }
+data Path a = Path { _pathPoints :: [V2 a]
+                   , _pathColors :: [PathColor]
+                   , _pathLength :: NumArrayIndices
+                   , _pathColor  :: PathColor
+                   , _pathPoint  :: V2 a
+                   , _pathXBounds:: Range a
+                   , _pathYBounds:: Range a
+                   }
 makeLenses ''Path
 
+type PathState a = State (Path a) ()
 
-type BezierCurve = [Point2d]
+
+type BezierCurve a = [V2 a]
 
 
 -- | A function that updates a 4x4 matrix uniform.
-type SetUniformMatrix4fv = M44 GLfloat -> IO ()
+type SetUniformMatrix4fv = M44 Double -> IO ()
 
 
 -- | A function that updates an int uniform.
@@ -131,27 +131,12 @@ data Renderer = Renderer { _shader :: ShaderProgram
 makeLenses ''Renderer
 
 
-data Scale = Scale GLfloat GLfloat deriving (Show)
-
-
-data Rotation = Rotation GLfloat deriving (Show)
-
-
 data Bitmap = Bitmap { _bitmapTexture :: TextureObject
-                     , _bitmapSize    :: Size
-                     } deriving (Show)
+                     , _bitmapSize    :: (Int, Int)
+                     } deriving (Show, Eq)
 makeLenses ''Bitmap
 
 
-data InputEvent = NoInputEvent
-                | CharEvent Char
-                | WindowSizeEvent Int Int
-                | KeyEvent Key Int KeyState ModifierKeys -- Key, scancode, pressed/released, mods
-                | MouseButtonEvent MouseButton MouseButtonState ModifierKeys
-                | CursorMoveEvent Double Double
-                | CursorEnterEvent CursorState
-                | ScrollEvent Double Double
-                deriving (Show, Eq, Ord)
 
 
 type InputEvents_Window = ([InputEvent], Window)
@@ -160,17 +145,12 @@ type InputEvents_Window = ([InputEvent], Window)
 type WindowVar = MVar InputEvents_Window
 
 
-data InputEnv = InputEnv { _ienvEvent            :: Maybe InputEvent
-                         , _ienvCursorOnScreen   :: Bool
-                         , _ienvLastCursorPos    :: (Double, Double)
-                         , _ienvKeysDown         :: S.Set Key
-                         , _ienvMouseButtonsDown :: S.Set MouseButton
-                         } deriving (Show)
+
 makeLenses ''InputEnv
 
 
 instance Default InputEnv where
-    def = InputEnv { _ienvEvent = Nothing
+    def = InputEnv { _ienvEvents = []
                    , _ienvCursorOnScreen = False
                    , _ienvLastCursorPos = (0,0)
                    , _ienvKeysDown = mempty
@@ -178,67 +158,30 @@ instance Default InputEnv where
                    }
 
 
-data Transform2d = Transform2d { _t2Position :: Position
-                               , _t2Size     :: Size
-                               , _t2Scale    :: Scale
-                               , _t2Rotation :: Rotation
-                               } deriving (Show)
+data Transform a = Transform { _tPosition :: V3 a
+                             , _tSize     :: V3 a
+                             , _tScale    :: V3 a
+                             , _tRotation :: Quaternion a
+                             } deriving (Show, Eq)
+
+
+data Transform2d a = Transform2d { _t2Position :: V2 a
+                                 , _t2Size     :: V2 a
+                                 , _t2Scale    :: V2 a
+                                 , _t2Rotation :: a
+                                 } deriving (Show, Eq)
 makeLenses ''Transform2d
 
 
-instance Default Transform2d where
-    def = Transform2d { _t2Position = Position 0 0
-                      , _t2Size = Size 0 0
-                      , _t2Scale = Scale 1 1
-                      , _t2Rotation = Rotation 0
+instance Num a => Default (Transform2d a) where
+    def = Transform2d { _t2Position = V2 0 0
+                      , _t2Size = V2 0 0
+                      , _t2Scale = V2 1 1
+                      , _t2Rotation = 0
                       }
 
 
-type Bitmap_Transform2d = (Bitmap, Transform2d)
+type Bitmap_Transform2d a = (Bitmap, Transform2d a)
 
 
-type TimeDelta = Timed NominalDiffTime ()
 
-
-type Timer = Session IO TimeDelta
-
-
-type UrzaWire en ex a = Wire TimeDelta ex (ReaderT en Identity) a a
-
-
-type InputReader = ReaderT InputEnv Identity
-
-
-type InputWire a b = Wire TimeDelta () InputReader a b
-
-
--- | An iteration is all the data you need for one frame.
-data Iteration env event xcept a =
-    Iteration { _iEnv        :: env
-              -- ^ The environment wires use to trigger events.
-              , _iSession    :: Timer
-              -- ^ The current timer.
-              , _iData       :: Either xcept a
-              -- ^ Our user data (some display object).
-              , _iWire       :: UrzaWire env xcept a
-              -- ^ A control wire for changing user data over time and
-              -- responding to events.
-              , _iProcessEv  :: Maybe event -> env -> env
-              -- ^ Processes an event into the environment.
-              , _iRender     :: Either xcept a -> IO (Either xcept a)
-              -- ^ Function for rendering user data and performing IO.
-              }
-makeLenses ''Iteration
-
-
-type WindowIteration a = Iteration InputEnv InputEvent () a
-
-
-instance Default (WindowIteration ()) where
-    def = Iteration { _iEnv = def
-                    , _iSession = clockSession_
-                    , _iData = Left mempty
-                    , _iWire = arr id
-                    , _iProcessEv = const id
-                    , _iRender = return
-                    }

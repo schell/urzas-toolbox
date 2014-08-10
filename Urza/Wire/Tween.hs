@@ -2,38 +2,9 @@
 module Urza.Wire.Tween where
 
 import Prelude hiding ((.), id)
-import FRP.Netwire
+import Control.Wire
+import Control.Wire.Core
 
-
-type TweenWire = (HasTime t s, Monoid e, Monad m, Fractional b, Fractional t) => b -> b -> t -> Wire s e m a b
-
-
-type TweenWireF = (HasTime t s, Monoid e, Monad m, Floating b, Fractional b, Fractional t) => b -> b -> t -> Wire s e m a b
-
-
-timePercent :: (HasTime b s, Monoid e, Monad m, Fractional b, Fractional c) => b -> Wire s e m a c
-timePercent t = fmap realToFrac $ (when (<=1) . (time / pure t)) <|> 1
-
-
-tweenWire :: (HasTime b s, Monoid e, Applicative f1, Applicative f, Num s1, Monad m, Fractional c, Fractional b) => (f1 s1 -> Wire s e m a c -> f s1 -> t) -> s1 -> s1 -> b -> t
-tweenWire f start end dur = f c t b
-    where c = pure $ end - start
-          t = timePercent dur
-          b = pure start
-
-
-easeInOut :: (HasTime t s, Monoid e, Monad m, Fractional b, Fractional t) => TweenWire -> TweenWire -> b -> b -> t -> Wire s e m a b
-easeInOut ein eout start end dur =
-    let middle = start + (end - start) / 2
-    in for (dur/2) . ein start middle (dur/2)
-           --> eout middle end (dur/2)
-
-
-easeInOutF :: (HasTime t s, Monoid e, Monad m, Fractional b, Fractional t, Floating b) => TweenWireF -> TweenWireF -> b -> b -> t -> Wire s e m a b
-easeInOutF ein eout start end dur =
-    let middle = start + (end - start) / 2
-    in for (dur/2) . ein start middle (dur/2)
-           --> eout middle end (dur/2)
 
 
 linearTween :: TweenWire
@@ -78,52 +49,113 @@ easeOutPow pow = tweenWire $ \c t b ->
     in c' * ((t'^pow) + i) + b
 
 
-easeInSine :: TweenWireF
+easeInSine :: TweenWire
 easeInSine = tweenWire $ \c t b ->
     let cos' = cos (t * (pi / 2))
     in -c * cos' + c + b
 
 
-easeOutSine :: TweenWireF
+easeOutSine :: TweenWire
 easeOutSine = tweenWire $ \c t b ->
     let cos' = cos (t * (pi / 2))
     in c * cos' + b
 
 
-easeInOutSine :: TweenWireF
+easeInOutSine :: TweenWire
 easeInOutSine = tweenWire $ \c t b ->
     let cos' = cos (pi * t)
     in (-c / 2) * (cos' - 1) + b
 
 
-easeInExpo :: TweenWireF
+easeInExpo :: TweenWire
 easeInExpo = tweenWire $ \c t b ->
     let e = 10 * (t - 1)
     in c * (2**e) + b
 
 
-easeOutExpo :: TweenWireF
+easeOutExpo :: TweenWire
 easeOutExpo = tweenWire $ \c t b ->
     let e = -10 * t
     in c * (-(2**e) + 1) + b
 
 
-easeInOutExpo :: TweenWireF
-easeInOutExpo = easeInOutF easeInExpo easeOutExpo
+easeInOutExpo :: TweenWire
+easeInOutExpo = easeInOut easeInExpo easeOutExpo
 
 
-easeInCirc :: TweenWireF
+easeInCirc :: TweenWire
 easeInCirc = tweenWire $ \c t b ->
     let s = sqrt (1 - t*t)
     in -c * (s - 1) + b
 
 
-easeOutCirc :: TweenWireF
+easeOutCirc :: TweenWire
 easeOutCirc = tweenWire $ \c t b ->
     let t' = (t - 1)
         s  = sqrt (1 - t'*t')
     in c * s + b
 
 
-easeInOutCirc :: TweenWireF
-easeInOutCirc = easeInOutF easeInCirc easeOutCirc
+easeInOutCirc :: TweenWire
+easeInOutCirc = easeInOut easeInCirc easeOutCirc
+
+-- | Time as a percentage of t seconds.
+timePercentOf :: (Ord c, Monad m, Fractional c) => c -> Wire m a c
+timePercentOf t = arr (\t' -> if t' > 1 then 1 else t') . (timeF / pure t)
+
+
+tweenWire :: (Applicative f1, Applicative f, Real b, Num s, Monad m, Fractional c, Fractional b) => (f1 s -> Wire m a c -> f s -> t) -> s -> s -> b -> t
+tweenWire f start end dur = f c t b
+    where c = pure $ end - start
+          t = arr realToFrac . timePercentOf dur
+          b = pure start
+
+
+easeInOut :: (Monad m) => TweenWire -> TweenWire -> Double -> Double -> Double -> Wire m a Double
+easeInOut ein eout start end dur =
+    let middle = start + (end - start) / 2
+        up     = ein start middle (dur/2)
+        down   = eout middle end (dur/2)
+    in switchWhen' (at $ dur/2) up down
+
+
+type TweenWire = (Monad m) => Double -> Double -> Double -> Wire m a Double
+
+
+switchWhen :: Monad m => (b -> Bool) -> Wire m a b -> Wire m a b -> Wire m a b
+switchWhen p w1 w2 = mkGen $ \dt a -> do
+    Output b w1' <- stepWire w1 dt a
+    return $ if p b
+               then Output b w2
+               else Output b (switchWhen p w1' w2)
+
+switchWhen' :: Monad m => Wire m a (Event c) -> Wire m a b -> Wire m a b -> Wire m a b
+switchWhen' sw w1 w2 = mkGen $ \dt a -> do
+    Output ev sw' <- stepWire sw dt a
+    case ev of
+        NoEvent -> do Output b w1' <- stepWire w1 dt a
+                      return $ Output b (switchWhen' sw' w1' w2)
+        Event _ -> stepWire w2 dt a
+
+cycleBetween :: Monad m => Wire m a (Event c) -> [Wire m a b] -> Wire m a b
+cycleBetween sw ws = mkGen $ \dt a -> do
+    Output ev sw' <- stepWire sw dt a
+    let wh = head ws
+        wt = tail ws
+    Output b wh' <- stepWire wh dt a
+    return $ case ev of
+        NoEvent -> Output b (cycleBetween sw' (wh':wt))
+
+        Event _ -> Output b (cycleBetween sw' (wt ++ [wh']))
+
+
+cycleBetweenA :: Monad m => Wire m a (Event c) -> [Wire m a b] -> Wire m a b
+cycleBetweenA switch wires = cycleBetweenA' switch (head wires) (tail (wires ++ [head wires]))
+    where cycleBetweenA' sw wh ws = mkGen $ \dt a -> do
+            Output ev sw' <- stepWire sw dt a
+            Output b wh' <- stepWire wh dt a
+            return $ case ev of
+                NoEvent -> Output b (cycleBetweenA' sw' wh' ws)
+
+                Event _ -> Output b (cycleBetweenA sw' ws)
+

@@ -3,11 +3,30 @@ module Urza.Bitmap where
 import Urza.Types
 import Urza.Texture
 import Urza.Math
-import Urza.Shader
-import Linear
-import Control.Lens
+--import Urza.Shader
+--import Data.Maybe
+--import Linear
+--import Control.Lens
+import Codec.Picture
 import Graphics.Rendering.OpenGL hiding (Bitmap)
 
+
+withBitmap :: (GLsizei, GLsizei) -> IO () -> IO Bitmap
+withBitmap (w,h) ioF = do
+    t <- renderToTexture (Size w h) RGBA8 ioF
+    return $ Bitmap t (fromIntegral w, fromIntegral h)
+
+
+imageToBitmap :: Image PixelRGBA8 -> IO (Maybe Bitmap)
+imageToBitmap img@(Image w h _) = bufferImage img >>= return . fmap (`Bitmap` (w,h))
+
+
+makeImageRenderAndRelease :: ShaderProgram -> Image PixelRGBA8 -> IO (Maybe (Transform2d Double -> IO (), IO ()))
+makeImageRenderAndRelease shdr img = do
+    mBmp <- imageToBitmap img
+    case mBmp of
+        Nothing  -> return Nothing
+        Just (Bitmap t _) -> makeTextureRenderAndRelease shdr t >>= return . Just
 
 loadBitmap :: FilePath -> IO (Maybe Bitmap)
 loadBitmap file = do
@@ -15,20 +34,16 @@ loadBitmap file = do
     case mTex of
         Nothing -> return Nothing
         Just t  -> do
-           sizeOfTexture t >>= return . Just . Bitmap t
+            let toTuple (Size w h) = (fromIntegral w, fromIntegral h)
+            sizeOfTexture t >>= return . Just . Bitmap t . toTuple
 
 emptyBitmap :: IO Bitmap
 emptyBitmap = do
     t <- genObjectName
-    return $ Bitmap t (Size 0 0)
+    return $ Bitmap t (0, 0)
 
-drawBitmap :: Renderer -> Bitmap -> Transform2d -> IO ()
-drawBitmap r bmp = drawBitmapWithUVs r bmp uvs
-    where uvs = quad 0 0 1 1
-
-
-drawBitmapPixels :: Integral a => Renderer -> Bitmap -> Rectangle a -> Transform2d -> IO ()
-drawBitmapPixels r b@(Bitmap _ (Size bw bh)) (Rectangle x y w h) = drawBitmapWithUVs r b uvs
+drawBitmapPixels :: Integral a => ShaderProgram -> Bitmap -> Rectangle a -> Transform2d Double -> IO ()
+drawBitmapPixels shdr (Bitmap t (bw, bh)) (Rectangle x y w h) = drawTextureWithUVs shdr t uvs
     where [bw',bh'] = map fromIntegral [bw,bh]
           [x',y',w',h'] = map fromIntegral [x,y,w,h]
           (xs,ys) = splitxys (quad x' y' w' h') ([],[])
@@ -36,35 +51,8 @@ drawBitmapPixels r b@(Bitmap _ (Size bw bh)) (Rectangle x y w h) = drawBitmapWit
           ys' = map (/bh') ys
           uvs = concat $ zipWith (\ex ey -> [ex,ey]) xs' ys' :: [GLfloat]
 
-
 splitxys :: [a] -> ([a],[a]) -> ([a],[a])
 splitxys [] xys = xys
 splitxys xys (xs,ys) = let x:y:[] = take 2 xys
                        in splitxys (drop 2 xys) (xs ++ [x], ys ++ [y])
 
-
-drawBitmapWithUVs :: Renderer -> Bitmap -> [GLfloat] -> Transform2d -> IO ()
-drawBitmapWithUVs r bmp uvs (Transform2d (Position tx ty) (Size w h) (Scale sx sy) (Rotation phi)) = do
-    let [tx',ty',w',h'] = map fromIntegral [tx,ty,w,h]
-        vs  = quad 0 0 1 1
-        qtr = axisAngle (V3 0 0 1) phi
-        rot = mkTransformationMat (fromQuaternion qtr) $ V3 0 0 0
-        trn = mkTransformationMat eye3 $ V3 tx' ty' 0
-        siz = m4 w' h'
-        scl = m4 sx sy
-        mat = trn !*! siz !*! scl !*! rot
-        m4 x y = (V4 (V4 x 0 0 0)
-                     (V4 0 y 0 0)
-                     (V4 0 0 0 0)
-                     (V4 0 0 0 1))
-    (i,j) <- bindAndBufferVertsUVs vs uvs
-    texture Texture2D $= Enabled
-    activeTexture $= TextureUnit 0
-    textureBinding Texture2D $= Just (bmp^.bitmapTexture)
-    r^.shader.setIs3d $ False
-    r^.shader.setIsTextured $ True
-    r^.shader.setColorIsReplaced $ False
-    r^.shader.setSampler $ Index1 0
-    r^.shader.setModelview $ mat
-    drawArrays Triangles 0 6
-    deleteObjectNames [i,j]

@@ -60,8 +60,8 @@ loadCharacter r char = do
         h' = fromIntegral h
         gW' = fromIntegral gW :: GLint
         gH' = fromIntegral gH :: GLint
-        gW'' = fromIntegral gW' :: GLfloat
-        gH'' = fromIntegral gH' :: GLfloat
+        gW'' = fromIntegral gW' :: Double
+        gH'' = fromIntegral gH' :: Double
 
     -- Flip the charTex to be right side up.
     charTex' <- renderToTexture (Size gW' gH') R8 $ do
@@ -82,7 +82,7 @@ loadCharacter r char = do
         r^.shader.setIsTextured $ True
         r^.shader.setProjection $ pj
         r^.shader.setModelview $ mv
-        (i,j) <- bindAndBufferVertsUVs vs us
+        ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vs us
         drawArrays Triangles 0 6
         bindBuffer ArrayBuffer $= Nothing
         deleteObjectNames [i,j]
@@ -139,7 +139,7 @@ drawChar r pen char =
                 uvs = charUVs fc (fromIntegral tSw, fromIntegral tSh)
 
             -- Make our geometry vbos.
-            (i,j) <- bindAndBufferVertsUVs vs uvs
+            ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vs uvs
 
             -- Do some standard GL texture stuffs and render our quad with
             -- the char's texture.
@@ -307,7 +307,7 @@ advancePenPosition (Position x y) (FontChar (Size w _) _ (NormGMetrics _ advp)) 
 
 -- | Renders a texture object at a pen position using the program in the
 -- given text renderer.
-renderTex :: Renderer -> TextureObject -> PenPosition -> (GLfloat, GLfloat) -> IO ()
+renderTex :: Renderer -> TextureObject -> PenPosition -> (Double, Double) -> IO ()
 renderTex r t (Position x y) (w,h) = do
     let scl  = scaleM44 w h 1
         x'  = fromIntegral x
@@ -322,7 +322,7 @@ renderTex r t (Position x y) (w,h) = do
     texture Texture2D $= Enabled
     activeTexture $= TextureUnit 0
     textureBinding Texture2D $= Just t
-    (i,j) <- bindAndBufferVertsUVs vts uvs
+    ((i,_,_),(j,_,_)) <- bindAndBufferVertsUVs vts uvs
     drawArrays Triangles 0 6
     deleteObjectNames [i,j]
     bindBuffer ArrayBuffer $= Nothing

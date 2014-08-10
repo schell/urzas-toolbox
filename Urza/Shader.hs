@@ -9,6 +9,7 @@ module Urza.Shader  (
     bindAndBufferVertsColors,
     bindAndBufferMany,
     bindAndBuffer,
+    bindVertexBuffer,
     sizeOfFloatList,
     sizeOfIntList,
     sizeOfUByteList,
@@ -18,6 +19,7 @@ module Urza.Shader  (
 import           Urza.Error
 import           Urza.Types
 import           Urza.Math
+import           Urza.Shader.Types
 import           Graphics.Rendering.OpenGL
 import           Control.Monad
 import           Foreign
@@ -28,18 +30,19 @@ import qualified Data.ByteString as B
 
 withVertsAndColors :: [GLfloat] -> [GLfloat] -> IO () -> IO ()
 withVertsAndColors vs cs f = do
-    (i, j) <- bindAndBufferVertsColors vs cs
+    ((i,_,_), (j,_,_)) <- bindAndBufferVertsColors vs cs
     f
     deleteObjectNames [i,j]
 
 
 withVerts3AndColors :: [GLfloat] -> [GLfloat] -> IO () -> IO ()
 withVerts3AndColors vs cs f = do
-    (i, j) <- bindAndBufferVerts3Colors vs cs
+    ((i,_,_), (j,_,_)) <- bindAndBufferVerts3Colors vs cs
     f
     deleteObjectNames [i,j]
 
 
+sizeOfFloatList :: [GLfloat] -> GLsizeiptr
 sizeOfFloatList = sizeOfList
 
 
@@ -108,9 +111,9 @@ makeShaderProgram = do
     rLoc <- get $ uniformLocation p "isColorReplaced"
     i3Loc <- get $ uniformLocation p "is3d"
 
-    let updateMV mat = withArray (toList mat) $ \ptr ->
+    let updateMV mat = withArray (map realToFrac $ toList mat) $ \ptr ->
                            glUniformMatrix4fv mv 1 1 ptr
-        updatePJ mat = withArray (toList mat) $ \ptr ->
+        updatePJ mat = withArray (map realToFrac $ toList mat) $ \ptr ->
                            glUniformMatrix4fv pj 1 1 ptr
         updateSampler = (uniform sLoc $=)
         updateColor   = (uniform cLoc $=)
@@ -253,7 +256,7 @@ colorDescriptor :: VertexArrayDescriptor [Float]
 colorDescriptor = VertexArrayDescriptor 4 Float 0 nullPtr
 
 
-bindAndBufferVerts3UVs :: [GLfloat] -> [GLfloat] -> IO (BufferObject, BufferObject)
+bindAndBufferVerts3UVs :: [GLfloat] -> [GLfloat] -> IO (VertexBuffer [Float], VertexBuffer [Float])
 bindAndBufferVerts3UVs vts uvs = do
     [i,j] <- bindAndBufferMany [ (vts, vert3Descriptor, position3Location)
                                , (uvs, uvDescriptor, uvLocation)
@@ -261,7 +264,7 @@ bindAndBufferVerts3UVs vts uvs = do
     return (i,j)
 
 
-bindAndBufferVerts3Colors :: [GLfloat] -> [GLfloat] -> IO (BufferObject, BufferObject)
+bindAndBufferVerts3Colors :: [GLfloat] -> [GLfloat] -> IO (VertexBuffer [Float], VertexBuffer [Float])
 bindAndBufferVerts3Colors vts cs = do
     [i, j] <- bindAndBufferMany [ (vts, vert3Descriptor, position3Location)
                                 , (cs, colorDescriptor, colorLocation)
@@ -271,7 +274,7 @@ bindAndBufferVerts3Colors vts cs = do
 
 -- | Binds and buffers vertices and uv coords to be used with a text
 -- shader. This assumes that a text shader program is the current program.
-bindAndBufferVertsUVs :: [GLfloat] -> [GLfloat] -> IO (BufferObject, BufferObject)
+bindAndBufferVertsUVs :: [GLfloat] -> [GLfloat] -> IO (VertexBuffer [Float], VertexBuffer [Float])
 bindAndBufferVertsUVs vts uvs = do
     [i,j] <- bindAndBufferMany [ (vts, vertDescriptor, positionLocation)
                                , (uvs, uvDescriptor, uvLocation)
@@ -279,7 +282,7 @@ bindAndBufferVertsUVs vts uvs = do
     return (i,j)
 
 
-bindAndBufferVertsColors :: [GLfloat] -> [GLfloat] -> IO (BufferObject, BufferObject)
+bindAndBufferVertsColors :: [GLfloat] -> [GLfloat] -> IO (VertexBuffer [Float], VertexBuffer [Float])
 bindAndBufferVertsColors vts cs = do
     [i, j] <- bindAndBufferMany [ (vts, vertDescriptor, positionLocation)
                                 , (cs, colorDescriptor, colorLocation)
@@ -287,22 +290,23 @@ bindAndBufferVertsColors vts cs = do
     return (i,j)
 
 
-bindAndBufferMany :: [([GLfloat], VertexArrayDescriptor [Float], AttribLocation)] -> IO [BufferObject]
+bindAndBufferMany :: [([GLfloat], VertexArrayDescriptor [Float], AttribLocation)] -> IO [VertexBuffer [Float]]
 bindAndBufferMany = mapM (\(dats, vd, loc) -> bindAndBuffer dats vd loc)
 
 
-bindAndBuffer :: [GLfloat] -> VertexArrayDescriptor [Float] -> AttribLocation -> IO BufferObject
-bindAndBuffer dats vd loc = do
-    i <- genObjectName
-    bindVBO i vd loc
-    withArray dats $ \ptr -> do
-        bufferData ArrayBuffer $= (sizeOfList dats, ptr, StaticDraw)
-    return i
+bindAndBuffer :: [GLfloat] -> VertexArrayDescriptor [Float] -> AttribLocation -> IO (VertexBuffer [Float])
+bindAndBuffer vs dsc loc = do
+    bo <- genObjectName
+    let vb = (bo, dsc, loc)
+    bindVertexBuffer vb
+    withArray vs $ \ptr -> do
+        bufferData ArrayBuffer $= (sizeOfList vs, ptr, StaticDraw)
+    return vb
 
 
-bindVBO :: BufferObject -> VertexArrayDescriptor a -> AttribLocation -> IO ()
-bindVBO vbo dsc loc = do
-    bindBuffer ArrayBuffer $= Just vbo
+bindVertexBuffer :: VertexBuffer a -> IO ()
+bindVertexBuffer (bo, dsc, loc) = do
+    bindBuffer ArrayBuffer $= Just bo
     vertexAttribPointer loc $= (ToFloat, dsc)
     vertexAttribArray loc $= Enabled
 

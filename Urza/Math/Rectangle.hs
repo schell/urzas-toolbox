@@ -12,6 +12,9 @@ module Urza.Math.Rectangle
   height,
   containsRect,
   intersectsRect,
+  pointOnRect,
+  pointInRect,
+  expandRect,
   quadrants,
   union,
   zeroRect,
@@ -22,6 +25,7 @@ module Urza.Math.Rectangle
 ) where
 
 import Urza.Types
+import Linear
 import Graphics.Rendering.OpenGL hiding (Matrix, normalize)
 
 uncurryRectangle :: (a -> a -> a -> a -> b) -> Rectangle a -> b
@@ -60,6 +64,19 @@ width (Rectangle _ _ w _) = w
 
 height :: Rectangle a -> a
 height (Rectangle _ _ _ h) = h
+
+pointOnRect :: (Ord a, Num a) => V2 a -> Rectangle a -> Bool
+pointOnRect (V2 x y) (Rectangle x1 y1 w h) =
+    let (x2,y2) = (x1+w, y1+h)
+    in x >= x1 && x <= x2 && y >= y1 && y <= y2
+
+pointInRect :: (Ord a, Num a) => V2 a -> Rectangle a -> Bool
+pointInRect (V2 x y) (Rectangle x1 y1 w h) =
+    let (x2,y2) = (x1+w, y1+h)
+    in x > x1 && x < x2 && y > y1 && y < y2
+
+expandRect :: Num a => Rectangle a -> V2 a -> Rectangle a
+expandRect (Rectangle x y w h) (V2 vx vy) = Rectangle (x-vx) (y-vy) (w+2*vx) (h+2*vy) 
 
 containsRect :: (Ord a, Num a) => Rectangle a -> Rectangle a -> Bool
 containsRect r1 r2 = horizontal && vertical

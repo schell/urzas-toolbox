@@ -16,16 +16,16 @@ module Urza.Draw (
     moveTo,
     newPath,
     pushPoint,
-    rectangleAt,
+    rectangle,
     setColor,
     setPoint,
     stroke,
     strokePath,
-    strokePath_,
-    pointToTuple
+    strokePath_
 ) where
 
 import Urza.Types as T
+import Linear hiding (lerp)
 import Urza.Shader
 import Graphics.Rendering.OpenGL
 import Control.Lens
@@ -33,41 +33,37 @@ import Control.Monad
 import Control.Monad.State
 
 
-pointToTuple :: Point2d -> (Double, Double)
-pointToTuple (Point2d x y) = (x, y)
-
-
 -- | Creates a new default path.
-newPath :: Path
-newPath = Path [] [] 0 (Color4 0 0 0 1) (Point2d 0 0) (1/0,-1/0) (1/0,-1/0)
+newPath :: (Fractional a) => Path a
+newPath = Path [] [] 0 (Color4 0 0 0 1) (V2 0 0) (1/0,-1/0) (1/0,-1/0)
 
 
 -- | Runs a path state change over a new path and returns the modified
 -- path.
-execNewPath :: State Path () -> Path
+execNewPath :: Fractional a => PathState a -> Path a
 execNewPath = flip execState newPath
 
 
 -- | Sets the current color of the path.
-setColor :: PathColor -> State Path ()
+setColor :: PathColor -> PathState a
 setColor = (pathColor .=)
 
 
 -- | Sets the next position of the path.
 -- This does not add the point.
-setPoint :: Point2d -> State Path ()
+setPoint :: V2 a -> PathState a
 setPoint = (pathPoint .=)
 
 
 -- | Pushes the current point onto the end of the path along with the
 -- current color.
-pushPoint :: State Path ()
+pushPoint :: Ord a => PathState a
 pushPoint = do
-    Point2d x y  <- use pathPoint
+    V2 x y  <- use pathPoint
     (xMin, xMax) <- use pathXBounds
     (yMin, yMax) <- use pathYBounds
     -- Push the point up.
-    pathPoints %= (++ [(Point2d x y)])
+    pathPoints %= (++ [(V2 x y)])
     -- Update width/height.
     when (x < xMin) $ pathXBounds._1 .= x
     when (x > xMax) $ pathXBounds._2 .= x
@@ -81,63 +77,62 @@ pushPoint = do
 
 
 -- | Moves the path to a point without altering the path.
-moveTo :: Double -> Double -> State Path ()
-moveTo x y = setPoint $ Point2d x y
+moveTo :: V2 a -> PathState a
+moveTo = setPoint
 
 
 -- | Adds to the path a line from the current point to the given point and
 -- updates the current point to the latter.
-lineTo :: Double -> Double -> State Path ()
-lineTo x y = do
+lineTo :: Ord a => V2 a -> PathState a
+lineTo p = do
     pushPoint
-    moveTo x y
+    moveTo p
     pushPoint
 
 
 -- | Adds to the path a bezier curve sampled n times.
-curveAlong :: [(Double, Double)] -> Int -> State Path ()
+curveAlong :: (Fractional a, Num a, Ord a) => [V2 a] -> Int -> PathState a
 curveAlong curve n =
     case curve of
         []   -> return ()
         _:[] -> return ()
         -- ps' is the control polygon of the curve.
-        ps'@((x, y):_) -> do
-            moveTo x y
-            let ts  = intervals 0 1 n :: [Double]
-            forM_ ts $ \t -> do
+        ps'@(p:_) -> do
+            moveTo p
+            let ts  = intervals 0 1 n
+            forM_ ts $ \t ->
                 -- Do the bezier interpalation.
-                let (x', y') = deCasteljau t ps'
-                lineTo x' y'
+                lineTo $ deCasteljau t ps'
 
 
-curveTo :: Double -> Double -> [(Double, Double)] -> Int -> State Path ()
-curveTo x2 y2 ctrls n = do
-    Point2d x1 y1 <- use pathPoint
-    curveAlong ((x1,y1):ctrls ++ [(x2,y2)]) n
+curveTo :: (Fractional a, Num a, Ord a) => V2 a -> [V2 a] -> Int -> PathState a
+curveTo p2 ctrls n = do
+    p1 <- use pathPoint
+    curveAlong (p1:ctrls ++ [p2]) n
 
 
 -- | Adds to the path a line from the current point to the given point and
 -- changes the color at the given point.
-gradientLineTo :: Double -> Double -> PathColor -> State Path ()
-gradientLineTo x y c = do
+gradientLineTo :: (Num a, Ord a) => V2 a -> PathColor -> PathState a
+gradientLineTo p c = do
     pushPoint
-    moveTo x y
+    moveTo p
     setColor c
     pushPoint
 
 
 -- | Adds a rectangle at the given point with a given width and height.
-rectangleAt :: Double -> Double -> Double -> Double -> State Path ()
-rectangleAt x y w h = do
-    moveTo x y
-    lineTo (x+w) y
-    lineTo (x+w) (y+h)
-    lineTo x (y+h)
-    lineTo x y
+rectangle :: (Num a, Ord a) => Rectangle a -> PathState a
+rectangle (Rectangle x y w h) = do
+    moveTo $ V2 x y
+    lineTo $ V2 (x+w) y
+    lineTo $ V2 (x+w) (y+h)
+    lineTo $ V2 x (y+h)
+    lineTo $ V2 x y
 
 
-circleOfNAt :: Double -> Double -> Double -> Int -> State Path ()
-circleOfNAt x y r n = do
+circleOfNAt :: (Real a, Floating a, RealFrac a, Fractional a) => V2 a -> a -> Int -> PathState a
+circleOfNAt (V2 x y) r n = do
     when (r > 0) $ do
         let i      = n
             fi     = fromIntegral i
@@ -148,87 +143,88 @@ circleOfNAt x y r n = do
             (xx,yy):xys = fmap (over both realToFrac) fxys
 
         -- Move to the first point on the circle
-        moveTo xx yy
+        moveTo $ V2 xx yy
         unless (null xys) $ do
             forM_ xys $ \(x',y') -> do
-                lineTo x' y'
-            lineTo xx yy
+                lineTo $ V2 x' y'
+            lineTo $ V2 xx yy
 
 
-circleAt :: Double -> Double -> Double -> State Path ()
-circleAt x y r =
+circleAt :: (Real a, Floating a, RealFrac a, Fractional a) => V2 a -> a -> PathState a
+circleAt p r =
     -- Find how many segments we will need to keep the straight
     -- line segment unnoticable.
     let arcLen = 10 -- Segments of 10 pixels.
         c      = 2 * pi * r
         -- Use at least 8 points.
         i      = max (ceiling $ c / arcLen) 8
-    in circleOfNAt x y r i
+    in circleOfNAt p r i
 
 
 -- | Closes a path.
-closePath :: State Path ()
+closePath :: (Eq a, Ord a) => PathState a
 closePath = do
     ps <- use pathPoints
     unless (null ps) $ do
-        let lp@(Point2d x y) = last ps
-        when (head ps /= lp) $ lineTo x y
+        let lp = last ps
+        when (head ps /= lp) $ lineTo lp
 
 
 -- | Draws a path into the current opengl context and returns the bounding
 -- box of the result rendering.
 -- Assumes a shader is set up with the proper uniforms to handle the
 -- drawing.
-stroke :: Renderer -> Path -> IO (Rectangle Double)
-stroke r p = drawPath r p Lines
+stroke :: (Num a, Real a) => ShaderProgram -> Path a -> IO (Rectangle a)
+stroke s p = drawPath s p Lines
 
 
-strokePath :: Renderer -> State Path () -> IO (Rectangle Double)
-strokePath r = stroke r . execNewPath
+strokePath :: (Fractional a, Num a, Real a) => ShaderProgram -> PathState a -> IO (Rectangle a)
+strokePath s = stroke s . execNewPath
 
 
-strokePath_ :: Renderer -> State Path () -> IO ()
+strokePath_ :: (Fractional a, Num a, Real a) => ShaderProgram -> PathState a -> IO ()
 strokePath_ r s = strokePath r s >> return ()
 
 
 -- | Draws a filled path as a polygon into the current opengl context.
 -- We should probably be doing earclipping and sending tris to the gpu but
 -- drawing in Polygon primitive mode works for now.
-fill :: Renderer -> Path -> IO (Rectangle Double)
-fill r p = drawPath r p' Polygon 
+fill :: (Num a, Real a) => ShaderProgram -> Path a -> IO (Rectangle a)
+fill s p = drawPath s p' Polygon
     where p' = execState closePath p
 
 
-drawPath :: Renderer -> Path -> PrimitiveMode -> IO (Rectangle Double)
-drawPath r p mode = do
-    let vs  = map realToFrac $ concat [ [x,y] | Point2d x y <- p^.pathPoints ]
+drawPath :: (Num a, Real a) => ShaderProgram -> Path a -> PrimitiveMode -> IO (Rectangle a)
+drawPath s p mode = do
+    let vs  = map realToFrac $ concat [ [x,y] | V2 x y <- p^.pathPoints ]
         uvs = map realToFrac $ concat [ [r,g,b,a] | Color4 r g b a <- p^.pathColors ]
         (l,rt) = p^.pathXBounds
         (t,bm) = p^.pathYBounds
-    (i,j) <- bindAndBufferVertsColors vs uvs
+    ((i,_,_),(j,_,_)) <- bindAndBufferVertsColors vs uvs
     texture Texture2D $= Disabled
-    r^.shader.setIs3d $ False
-    r^.shader.setIsTextured $ False
-    r^.shader.setColorIsReplaced $ False
+    s^.setIs3d $ False
+    s^.setIsTextured $ False
+    s^.setColorIsReplaced $ False
     drawArrays mode 0 $ p^.pathLength
     deleteObjectNames [i,j]
     return $ Rectangle l t (rt - l) (bm - t)
 
 
-fillPath :: Renderer -> State Path () -> IO (Rectangle Double)
-fillPath r = fill r . execNewPath
+
+fillPath :: (Fractional a, Num a, Real a) => ShaderProgram -> PathState a -> IO (Rectangle a)
+fillPath s = fill s . execNewPath
 
 
-fillPath_ :: Renderer -> State Path () -> IO ()
-fillPath_ r s = fillPath r s >> return ()
+fillPath_ :: (Fractional a, Num a, Real a) => ShaderProgram -> PathState a -> IO ()
+fillPath_ shdr s = fillPath shdr s >> return ()
 
 
-deCasteljau :: Double -> [(Double, Double)] -> (Double, Double)
+deCasteljau :: (Fractional a, Num a) => a -> [V2 a] -> V2 a
 deCasteljau _ [b] = b
 deCasteljau t coefs = deCasteljau t reduced
   where
     reduced = zipWith (lerpP t) coefs (tail coefs)
-    lerpP t' (x0, y0) (x1, y1) = (lerp t' x0 x1, lerp t' y0 y1)
+    lerpP t' (V2 x0 y0) (V2 x1 y1) = V2 (lerp t' x0 x1) (lerp t' y0 y1)
     lerp t' a b = t' * b + (1 - t') * a
 
 

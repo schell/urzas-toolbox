@@ -3,7 +3,9 @@ module Urza (
 ) where
 
 import Urza.Types as U
-import Urza.Wire as U
+--import Urza.Wire as U
+import Urza.Input.Event as U
+import Urza.Input.Types as U
 import Urza.Window as U
 import Urza.Renderer as U
 import Urza.Text as U

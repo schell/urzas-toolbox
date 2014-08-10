@@ -49,6 +49,7 @@ cabal-version:       >=1.10
 library
   -- Modules exported by the library.
   exposed-modules:     Urza,
+                       Urza.Data.QTree,
                        Urza.Text,
                        Urza.Text.Character,
                        Urza.Text.Font,
@@ -61,12 +62,16 @@ library
                        Urza.Math.Matrix,
                        Urza.Renderer,
                        Urza.Shader,
+                       Urza.Shader.Types,
                        Urza.Texture,
                        Urza.Types,
-                       Urza.Wire,
-                       Urza.Wire.Core,
-                       Urza.Wire.Event,
-                       Urza.Wire.Tween,
+                       Urza.Input.Event,
+                       Urza.Input.Types,
+                       --Urza.Wire,
+                       --Urza.Wire.Types,
+                       --Urza.Wire.Core,
+                       --Urza.Wire.Event,
+                       --Urza.Wire.Tween,
   --                     Urza.UI,
                        Urza.Window
 
@@ -83,14 +88,16 @@ library
                        lens >=4.0 && <4.1,
                        directory >=1.2 && <1.3,
                        GLFW-b >=1.4 && <1.5,
+                       FontyFruity >=0.3 && <0.4,
+                       Rasterific >=0.3 && <0.4,
+                       JuicyPixels >=3.1 && <3.2,
                        mtl >=2.1 && <2.2,
                        containers >=0.5 && <0.6,
-                       JuicyPixels >=3.1 && <3.2,
                        vector >=0.10 && <0.11,
-                       OpenGLRaw >=1.4 && <1.5,
+                       OpenGLRaw >=1.5 && <1.6,
                        bytestring >=0.10 && <0.11,
                        freetype2 >=0.1 && <0.2,
-                       netwire >= 5.0 && <5.1,
+                       --wires >= 0.1 && <0.2,
                        linear -any
 
   -- Directories containing source files.
