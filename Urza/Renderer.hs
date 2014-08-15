@@ -4,6 +4,7 @@ module Urza.Renderer where
 import           Urza.Text
 import           Urza.Types
 import           Urza.Shader
+import           Linear
 import           Graphics.Rendering.OpenGL hiding (Bitmap, Matrix)
 import           Control.Monad
 import           Control.Lens
@@ -46,6 +47,13 @@ drawTextAt' r pen s = do
     bindBuffer ArrayBuffer $= Nothing
     deleteObjectNames [i,j]
     return $ Rectangle l t (rt - l) (bm - t)
+
+textSize :: Renderer -> String -> V2 Double
+textSize rndr str =
+    let buff  = geometryForString (emptyBufferAccumulator $ _atlas rndr) str
+        (l,r) = _buffAccXBounds buff
+        (t,b) = _buffAccYBounds buff
+    in V2 (r - l) (b - t)
 
 
 makeRenderer :: FilePath -> GLsizei -> IO Renderer
